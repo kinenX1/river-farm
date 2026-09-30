@@ -7,6 +7,7 @@ import { ITEM_MODELS } from './models/items.js';
 import { renderIcons } from './gfx/icons.js';
 import { tex } from './gfx/textures.js';
 import * as M from './gfx/materials.js';
+import { createSky, createGrass, createCritters, createDust } from './gfx/ambience.js';
 
 // Game world + rules. Starts in "menu mode" (camera circles the map, the
 // other farmer works his land) until play(skin) is called from the menu.
@@ -101,6 +102,11 @@ function land(cx) {
   }
 }
 land(leftX); land(rightX);
+const fields = [{ x: leftX, z: 0, w: LAND_W - 1, d: LAND_D - 1 }, { x: rightX, z: 0, w: LAND_W - 1, d: LAND_D - 1 }];
+const sky = createSky(scene);
+const grass = createGrass(scene, fields);
+const critters = createCritters(scene, fields);
+const dust = createDust(scene);
 const river = new THREE.Mesh(new THREE.BoxGeometry(RIVER, 0.4, LAND_D + 20), mat(0x45bdf0, { roughness: 0.2, metalness: 0.05 }));
 river.position.set(0, -0.45, 0); scene.add(river);
 
@@ -162,7 +168,12 @@ const pay = cost => Object.entries(cost).forEach(([k, n]) => inv[k] -= n);
 const costHtml = cost => Object.entries(cost).map(([k, n]) => `<span class="${inv[k] >= n ? '' : 'miss'}">${n} ${ITEMS[k].name}</span>`).join(' · ');
 
 // ================= FARMERS =================
-const animate = (f, moving, dt) => animateFarmer(f, moving, dt, reduceMotion);
+// Walking is 40% quicker than the first prototype (still no running)
+const WALK = 4.76, WALK_STARVING = 2.52, WALK_ANIM = 1.4;
+const animate = (f, moving, dt) => {
+  animateFarmer(f, moving, dt * (moving ? WALK_ANIM : 1), reduceMotion);
+  if (moving && (f.dustT = (f.dustT ?? 0) - dt) < 0) { f.dustT = 0.22; dust.puff(f.x, f.z); }
+};
 // Both farmers exist from the start; play(skin) decides which one is you.
 // You always live on the left land.
 const farmers = { zino: buildFarmer('zino'), copper: buildFarmer('copper') };
@@ -432,7 +443,7 @@ function runBot(dt) {
   if (step[0] === 'go') {
     const dx = step[1] - copper.x, dz = step[2] - copper.z, d = Math.hypot(dx, dz);
     if (d < 0.3) { bot.plan.shift(); animate(copper, false, dt); return; }
-    const sp = Math.min(d, 3 * dt);
+    const sp = Math.min(d, WALK * 0.9 * dt);
     copper.face = Math.atan2(dx, dz);
     copper.x += dx / d * sp; copper.z += dz / d * sp;
     animate(copper, true, dt); return;
@@ -520,7 +531,7 @@ function frame(now) {
   const il = Math.hypot(ix, iy); if (il > 1) { ix /= il; iy /= il; }
   const moving = playing && il > 0.12 && $('shopSheet').hidden && $('buildSheet').hidden;
   if (moving) {
-    const speed = (hunger > 0 ? 3.4 : 1.8) * dt;
+    const speed = (hunger > 0 ? WALK : WALK_STARVING) * dt;
     const wx = ix * Math.cos(yaw) + iy * Math.sin(yaw), wz = -ix * Math.sin(yaw) + iy * Math.cos(yaw);
     tryMove(me, wx * speed, wz * speed);
     me.face = Math.atan2(wx, wz);
@@ -538,7 +549,9 @@ function frame(now) {
   // trees grow, shake
   for (const t of trees) {
     if (t.grow < 1) { t.grow = Math.min(1, t.grow + dt * (raining ? 0.06 : 0.02)); t.g.scale.setScalar(Math.max(0.3, t.grow) * t.full); }
-    if (t.shake > 0) { t.shake -= dt; t.top.rotation.z = Math.sin(t.shake * 60) * 0.06; } else t.top.rotation.z = 0;
+    const wind = storm ? 3 : raining ? 1.8 : 1;
+    if (t.shake > 0) { t.shake -= dt; t.top.rotation.z = Math.sin(t.shake * 60) * 0.06; } else t.top.rotation.z = Math.sin(tm * 1.3 + t.x) * 0.015 * wind;
+    t.top.rotation.x = Math.sin(tm * 0.9 + t.z) * 0.012 * wind;
   }
   // farms grow (rain = much faster)
   for (const f of farms) {
@@ -564,7 +577,12 @@ function frame(now) {
     if (flash <= 0 && Math.random() < 0.006) flash = 0.25;
     if (flash > 0) { flash -= dt; bg.lerp(SKY.white, 0.6); hemi.intensity += 1.2; }
   }
-  scene.background = bg; scene.fog.color.copy(bg);
+  scene.fog.color.copy(bg);
+  const night = 1 - Math.min(1, Math.max(0, Math.sin(ang) + 0.15) * 4);
+  sky.update(v3.set(Math.cos(ang), Math.sin(ang), 0.4), bg, night);
+  grass.update(tm, storm ? 3 : raining ? 1.8 : 1);
+  critters.update(tm, raining ? Math.max(night, 0.6) : night);
+  dust.update(dt);
 
   // sea
   const p = seaGeo.attributes.position.array, amp = storm ? 0.9 : 0.25;
