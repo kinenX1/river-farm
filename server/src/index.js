@@ -1,68 +1,64 @@
-// River Farm online server: friends, lobbies and matchmaking over WebSocket.
-// Messages are JSON: { type, ...data }. Run with `npm run server` from the repo root.
+// River Farm online server. Accounts, friends, invites, lobbies and
+// matchmaking all live in shared/hub.js; this file only moves JSON
+// messages over WebSockets and saves players to disk.
+//
+// Run with `npm run server` from the repo root. PORT defaults to 8787.
 import { WebSocketServer } from 'ws';
-import { randomUUID } from 'node:crypto';
-import { Lobbies } from './lobbies.js';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { Hub } from '../../shared/hub.js';
 
 const PORT = Number(process.env.PORT) || 8787;
-const wss = new WebSocketServer({ port: PORT });
-const lobbies = new Lobbies();
+const DATA = process.env.DATA_FILE || join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'players.json');
+
+let saved = [];
+try { saved = JSON.parse(readFileSync(DATA, 'utf8')); } catch {}
+
 const sockets = new Map(); // playerId -> socket
+const hub = new Hub({
+  users: saved,
+  send: (id, msg) => {
+    const ws = sockets.get(id);
+    if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
+  },
+});
 
-const send = (ws, msg) => ws.readyState === ws.OPEN && ws.send(JSON.stringify(msg));
-const sendLobby = lobby => lobby?.players.forEach(p => sockets.get(p.id) && send(sockets.get(p.id), { type: 'lobby', lobby }));
+let dirty = false;
+function save() {
+  if (!dirty) return;
+  dirty = false;
+  mkdirSync(dirname(DATA), { recursive: true });
+  writeFileSync(DATA, JSON.stringify(hub.exportUsers(), null, 2));
+}
+setInterval(() => { hub.tick(); save(); }, 1000);
 
+const wss = new WebSocketServer({ port: PORT });
 wss.on('connection', ws => {
-  const player = { id: randomUUID(), name: 'Farmer', skin: 'zino' };
-  let lobbyCode = null;
-  sockets.set(player.id, ws);
-  send(ws, { type: 'hello', id: player.id });
-
+  let me = null;
   ws.on('message', raw => {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
-    try {
-      switch (msg.type) {
-        case 'profile':
-          player.name = String(msg.name ?? '').slice(0, 16) || 'Farmer';
-          player.skin = msg.skin === 'copper' ? 'copper' : 'zino';
-          break;
-        case 'create':
-          if (lobbyCode) sendLobby(lobbies.leave(lobbyCode, player.id));
-          lobbyCode = lobbies.create(player).code;
-          sendLobby(lobbies.lobbies.get(lobbyCode));
-          break;
-        case 'join':
-          if (lobbyCode) sendLobby(lobbies.leave(lobbyCode, player.id));
-          lobbyCode = lobbies.join(msg.code, player).code;
-          sendLobby(lobbies.lobbies.get(lobbyCode));
-          break;
-        case 'mode':
-          sendLobby(lobbies.setMode(lobbyCode, player.id, msg.mode));
-          break;
-        case 'start': {
-          const match = lobbies.startSearch(lobbyCode, player.id);
-          sendLobby(lobbies.lobbies.get(lobbyCode));
-          if (match) for (const t of match.teams) for (const p of t.players) {
-            const s = sockets.get(p.id);
-            if (s) send(s, { type: 'match', match, land: t.land });
-          }
-          break;
-        }
-        case 'cancel':
-          lobbies.stopSearch(lobbyCode);
-          sendLobby(lobbies.lobbies.get(lobbyCode));
-          break;
-      }
-    } catch (e) {
-      send(ws, { type: 'error', message: e.message });
+    if (msg.type === 'login') {
+      // the phone remembers its player ID and sends it back each time;
+      // a new phone gets a fresh ID
+      if (me) sockets.delete(me.id);
+      const known = msg.id && hub.users.has(msg.id);
+      const id = known ? msg.id : hub.newId();
+      const old = sockets.get(id);
+      if (old && old !== ws) old.close(4000, 'Signed in somewhere else');
+      sockets.set(id, ws);
+      me = hub.login({ id, name: msg.name, skin: msg.skin, create: !known });
+      dirty = true;
+      return;
     }
+    if (!me) return ws.send(JSON.stringify({ type: 'error', message: 'Sign in first' }));
+    hub.handle(me.id, msg);
+    dirty = true;
   });
-
   ws.on('close', () => {
-    sockets.delete(player.id);
-    if (lobbyCode) sendLobby(lobbies.leave(lobbyCode, player.id));
+    if (me && sockets.get(me.id) === ws) { sockets.delete(me.id); hub.logout(me.id); dirty = true; }
   });
 });
 
-console.log(`River Farm server listening on ws://localhost:${PORT}`);
+console.log(`River Farm server on ws://localhost:${PORT} (${saved.length} saved players)`);

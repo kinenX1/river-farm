@@ -33,9 +33,11 @@ client/              the game (Three.js + Vite)
   src/gfx/           painted textures, materials, 3D item icons
   src/data/items.js  every item and its shop price
   src/style.css
-server/              online: lobbies, friend codes, matchmaking (WebSocket)
-  src/lobbies.js     lobby + matchmaking rules (tested)
-  src/index.js       the WebSocket server
+  src/online/        online menus: friends, Play steps, lobby; server connection
+shared/hub.js        the online brain: players, friends, invites, lobbies,
+                     matchmaking, lobby timers (used by server AND the demo)
+server/src/index.js  WebSocket server, saves players to server/data/
+server/test/         online tests
 ```
 
 ## Game rules so far
@@ -46,12 +48,23 @@ server/              online: lobbies, friend codes, matchmaking (WebSocket)
 - Build: farm, fence, house, barn, stone wall, tree (from a sapling), bridge.
 - Days and nights pass on their own. Rain is rare and random; it makes crops and
   trees grow faster. Storms are rarer.
-- Modes: 1v1, 1v1v1v1, 2v2, 3v3, 3v3v3, 4v4, 4v4v4. Friends join your lobby with
-  a code, the host starts, and you get matched against another team.
+- Online: every player gets an ID (like RF-KAYA7). Search IDs, add friends, see
+  who's online, invite them.
+- Play → Solo / Duo / Trio / Squad → mode (1v1, 1v1v1v1, 2v2, 2v2v2, 3v3, 3v3v3,
+  4v4, 4v4v4v4) → Random online lobby or Create a lobby.
+- Lobbies: host has a crown and starts the match. In random lobbies, if the host
+  waits 1 minute a 2-minute countdown starts and the match starts by itself.
+  Empty spots get bots.
+- Custom lobbies: the host sets name, mode, who can join, match length, day
+  length, starting coins, wood per tree, shop size, rain, storms, disasters,
+  bridge, hunger, and bots.
+- No server running? The Online button still works in demo mode with pretend
+  players.
 
 ## Next up
 
-- [ ] Connect the game to the server: sign-in, lobby screen, real opponents
+- [ ] Real-time match sync (see teammates and enemies move and build)
+- [ ] More than two lands for 3- and 4-team modes
 - [ ] Server runs the match (time, weather, shop, everyone's land)
 - [ ] Sword fighting, dying and the respawn pads
 - [ ] Trading between teammates

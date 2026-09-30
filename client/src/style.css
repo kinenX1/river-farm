@@ -133,3 +133,87 @@ button em { font-style: normal; font-family: var(--body); font-weight: 800; font
   button.big { font-size: 20px; padding: 9px 24px; }
   .tagline { font-size: 13px; margin-top: 14px; }
 }
+
+/* ---------- online ---------- */
+body.in-online #menu { display: none; }
+#online { position: fixed; inset: 0; z-index: 9; color: var(--ink); display: flex; flex-direction: column; gap: 10px;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(15,24,48,.78), rgba(15,24,48,.55)); box-sizing: border-box; overflow: hidden; }
+#online[hidden] { display: none; }
+.ol-loading { margin: auto; color: var(--paper); font-family: var(--display); font-size: 24px; }
+.ol-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ol-me { display: flex; align-items: center; gap: 8px; padding: 5px 8px; }
+.ol-me input { font-family: var(--display); font-size: 16px; width: 9em; border: 2px solid var(--paper-2); border-radius: 8px; padding: 3px 6px; background: #fff; color: var(--ink); }
+.ol-id { font-size: 12px; font-weight: 800; color: var(--wood); }
+.ol-id b { font-family: var(--display); font-weight: 400; font-size: 15px; color: var(--ink); letter-spacing: .04em; }
+.ol-demo, .ol-live { font-family: var(--display); font-size: 13px; padding: 4px 10px; border-radius: 999px; color: var(--paper); }
+.ol-demo { background: #b8742a; } .ol-live { background: #2f8a3c; }
+.ol-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.ol-body.with-friends { grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); }
+.ol-main { min-width: 0; overflow: auto; color: var(--paper); }
+.ol-main h2 { font-family: var(--display); font-weight: 400; font-size: 28px; margin: 4px 0 10px; text-shadow: 0 3px 0 var(--wood-dark); }
+.ol-hero { display: grid; gap: 12px; justify-items: start; align-content: center; height: 100%; }
+.ol-hero p { max-width: 40ch; font-weight: 700; margin: 0; }
+.ol-friends { overflow: auto; min-width: 0; display: grid; align-content: start; gap: 6px; }
+.ol-friends h3 { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--wood); margin: 8px 0 2px; display: flex; justify-content: space-between; }
+.ol-friends h3 small { text-transform: none; letter-spacing: 0; }
+.ol-search { display: flex; gap: 6px; }
+.ol-search input { flex: 1; min-width: 0; border: 2px solid var(--paper-2); border-radius: 8px; padding: 6px 8px; font: 700 13px var(--body); }
+.ol-search button { font-size: 13px; padding: 5px 10px; }
+.ol-row { display: flex; align-items: center; gap: 8px; background: var(--paper-2); border-radius: 10px; padding: 5px 8px; }
+.ol-row.off { opacity: .6; }
+.ol-row .nm { flex: 1; min-width: 0; font-weight: 800; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ol-row small { font-weight: 700; color: var(--wood); font-size: 11px; }
+.ol-row .x { font-size: 12px; padding: 3px 8px; }
+.ol-empty { font-size: 12px; font-weight: 700; margin: 0; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; background: #9a9a9a; box-shadow: 0 0 0 2px #fff; }
+.dot.online { background: #3cc452; } .dot.in-lobby { background: #f2b632; } .dot.in-match { background: #e0762b; }
+.ol-cards { display: flex; flex-wrap: wrap; gap: 12px; }
+.ol-card { display: grid; gap: 4px; justify-items: center; min-width: 120px; padding: 14px 18px; background: var(--paper); color: var(--ink);
+  border: 4px solid var(--wood-dark); box-shadow: 0 5px 0 var(--wood-dark); border-radius: 16px; font-family: var(--body); }
+.ol-card.wide { min-width: 220px; max-width: 280px; }
+.ol-card b { font-family: var(--display); font-weight: 400; font-size: 22px; }
+.ol-card b.mode { font-size: 34px; letter-spacing: .02em; }
+.ol-card small { font-weight: 700; color: var(--wood); font-size: 12px; text-align: center; }
+.ol-card.on { border-color: var(--leaf-dark); box-shadow: 0 5px 0 var(--leaf-dark); }
+.farmers { display: flex; gap: 3px; height: 30px; align-items: end; }
+.farmers i { width: 18px; height: 26px; border-radius: 50% 50% 40% 40%; background: var(--wood); box-shadow: inset 0 -8px 0 #6b5236; }
+.ol-settings { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; background: var(--paper); color: var(--ink); padding: 10px; border-radius: 14px; border: 3px solid var(--wood-dark); }
+.ol-settings label { display: grid; gap: 3px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--wood); }
+.ol-settings label.full { grid-column: 1 / -1; }
+.ol-settings label.tog { display: flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--ink); }
+.ol-settings select, .ol-settings input:not([type=checkbox]) { font: 800 14px var(--body); padding: 5px 6px; border-radius: 8px; border: 2px solid var(--paper-2); background: #fff; color: var(--ink); }
+.ol-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+.ol-wait { font-weight: 800; }
+.ol-lobby-head { display: flex; justify-content: space-between; align-items: start; gap: 10px; flex-wrap: wrap; }
+.ol-lobby-head h2 { margin-bottom: 0; }
+.ol-lobby-head small { font-weight: 800; }
+.ol-timer { font-family: var(--display); font-size: 16px; background: var(--paper); color: var(--ink); padding: 6px 12px; border-radius: 12px; font-variant-numeric: tabular-nums; }
+.ol-timer:empty { display: none; }
+.ol-timer.hot { background: #ffd84a; }
+.ol-teams { display: grid; grid-template-columns: repeat(var(--n), minmax(130px, 1fr)); gap: 10px; margin-top: 10px; overflow-x: auto; }
+.ol-team { background: rgba(255,246,224,.12); border: 2px solid rgba(255,246,224,.35); border-radius: 14px; padding: 8px; display: grid; gap: 6px; align-content: start; }
+.ol-team.mine { border-color: #ffe36b; background: rgba(255,227,107,.15); }
+.ol-team h4 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 15px; }
+.ol-player { position: relative; display: flex; align-items: center; gap: 6px; background: var(--paper); color: var(--ink); border-radius: 10px; padding: 8px; font-weight: 800; font-size: 13px; min-height: 22px; }
+.ol-player.me { box-shadow: 0 0 0 3px #ffe36b; }
+.ol-player .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ol-player small { font-size: 10px; background: var(--paper-2); padding: 1px 5px; border-radius: 5px; color: var(--wood); }
+.ol-player.empty { background: transparent; border: 2px dashed rgba(255,246,224,.4); color: var(--paper); justify-content: center; font-weight: 700; }
+.ol-player .x { font-size: 11px; padding: 2px 7px; }
+.crown { position: absolute; top: -13px; left: 8px; font-size: 20px; color: #ffd23a; text-shadow: 0 2px 0 #9c6b10; line-height: 1; }
+.ol-rules { margin-top: 10px; }
+.ol-rules summary { cursor: pointer; font-weight: 800; margin-bottom: 6px; }
+.ol-invite { position: fixed; z-index: 12; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: min(320px, calc(100vw - 32px)); font-size: 14px; display: grid; gap: 8px; }
+.ol-invite div { display: flex; gap: 8px; }
+#olToasts { position: fixed; z-index: 13; left: 50%; top: calc(12px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); display: grid; gap: 6px; pointer-events: none; }
+.ol-toast { background: var(--ink); color: var(--paper); font-weight: 800; font-size: 13px; padding: 7px 14px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,.35); text-align: center; }
+@media (max-height: 480px) {
+  .ol-main h2 { font-size: 22px; margin-bottom: 6px; }
+  .ol-card { padding: 9px 12px; } .ol-card b.mode { font-size: 26px; }
+  .ol-body.with-friends { grid-template-columns: minmax(0, 1fr) minmax(200px, 260px); }
+}
+.ol-friends, .ol-settings, .ol-team, .ol-card { box-sizing: border-box; }
+.ol-body.with-friends { grid-template-columns: minmax(0, 1fr) minmax(0, 290px); }
+.crown { position: static; font-size: 18px; margin-right: -2px; }
+.ol-friends { padding-right: 16px; }

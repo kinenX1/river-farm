@@ -130,6 +130,16 @@ const PAINTERS = {
     for (let y = 0; y < s; y += 2) { g.fillStyle = `rgba(0,0,0,${y % 4 ? 0.05 : 0.1})`; g.fillRect(0, y, s, 1); }
     for (let x = 0; x < s; x += 3) { g.fillStyle = 'rgba(0,0,0,.04)'; g.fillRect(x, 0, 1, s); }
   }),
+  // Flowing river water: soft light streaks, scrolled along the river
+  water: () => canvasTexture('water', 256, (g, s) => {
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, s, s);
+    for (let i = 0; i < 90; i++) {
+      const x = rand(0, s), y = rand(0, s), l = rand(20, 70);
+      g.strokeStyle = `rgba(255,255,255,${rand(0.3, 0.8)})`; g.lineWidth = rand(1, 3);
+      g.beginPath(); g.moveTo(x, y); g.bezierCurveTo(x + 4, y + l / 3, x - 4, y + l * 2 / 3, x, y + l); g.stroke();
+      g.strokeStyle = 'rgba(0,60,90,.12)'; g.beginPath(); g.moveTo(x + 6, y); g.lineTo(x + 6, y + l); g.stroke();
+    }
+  }),
   // Grass speckle laid over the land colors
   grass: () => canvasTexture('grass', 256, (g, s) => {
     g.fillStyle = '#ffffff'; g.fillRect(0, 0, s, s);

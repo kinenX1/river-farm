@@ -16,6 +16,9 @@ export function startGame() {
 let playing = false;
 const inv = { ...START_INVENTORY };
 let coins = START_COINS, hunger = 100;
+// Match rules. "Play solo" uses these; online matches pass the lobby's rules to play().
+let rules = { startCoins: START_COINS, treeWood: 8, shopItems: 6, weather: 'rare', storms: true, bridge: true, hunger: true, dayMinutes: 1.2, days: null };
+const RAIN_CHANCE = { off: 0, rare: 0.22, normal: 0.4, often: 0.65 };
 let renderer;
 try { renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('world'), antialias: true }); }
 catch (e) { document.getElementById('fail').hidden = false; throw e; }
@@ -107,8 +110,26 @@ const sky = createSky(scene);
 const grass = createGrass(scene, fields);
 const critters = createCritters(scene, fields);
 const dust = createDust(scene);
-const river = new THREE.Mesh(new THREE.BoxGeometry(RIVER, 0.4, LAND_D + 20), mat(0x45bdf0, { roughness: 0.2, metalness: 0.05 }));
-river.position.set(0, -0.45, 0); scene.add(river);
+// The river runs through the island: it starts at a spring in the rocks at the
+// north end and pours off a waterfall into the sea at the south end.
+box(RIVER, 2.2, LAND_D, new THREE.MeshStandardMaterial({ color: 0x9b6a3c, map: tex('soil', 2, 1), roughness: 1 }), 0, -1.35, 0);  // riverbed and cliff below it
+const riverTex = tex('water', 1.5, 6);
+const river = new THREE.Mesh(new THREE.PlaneGeometry(RIVER, LAND_D), new THREE.MeshStandardMaterial({ color: 0x2fb7c9, map: riverTex, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.93 }));
+river.rotation.x = -Math.PI / 2; river.position.set(0, -0.12, 0); river.receiveShadow = true; scene.add(river);
+for (const s of [-1, 1]) {   // sandy banks with pebbles
+  box(0.7, 0.5, LAND_D, new THREE.MeshStandardMaterial({ color: 0xd9c28c, roughness: 1 }), s * (RIVER / 2 - 0.35), -0.05, 0);
+  for (let i = 0; i < 26; i++) { const r = N.rock(); r.scale.setScalar(0.35); r.position.set(s * (RIVER / 2 - 0.3 - Math.random() * 0.4), 0.2, (Math.random() - 0.5) * (LAND_D - 1)); scene.add(r); }
+}
+// the spring: a rocky hill across the north end with a small waterfall
+const spring = new THREE.Group(); spring.position.set(0, 0, -HALF_D - 1.2); scene.add(spring);
+box(RIVER + 3, 2.4, 3.2, new THREE.MeshStandardMaterial({ color: 0x8a8f94, map: tex('stone', 3, 1), roughness: 1 }), 0, -0.6, 0, spring);
+for (let i = 0; i < 9; i++) { const r = N.rock(); r.scale.setScalar(1.6 + Math.random() * 1.6); r.position.set((Math.random() - 0.5) * (RIVER + 2), 0.9 + Math.random() * 1.4, (Math.random() - 0.5) * 2); spring.add(r); }
+const fallMat = new THREE.MeshStandardMaterial({ color: 0xbfefff, map: tex('water', 1, 1), transparent: true, opacity: 0.85, roughness: 0.1, side: THREE.DoubleSide });
+const springFall = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.8), fallMat); springFall.position.set(0, 1.1, 1.62); spring.add(springFall);
+// the mouth: river pours over the south cliff into the sea
+const mouthFall = new THREE.Mesh(new THREE.PlaneGeometry(RIVER - 1.4, 1.4), fallMat); mouthFall.rotation.x = -0.25; mouthFall.position.set(0, -0.5, HALF_D + 0.15); scene.add(mouthFall);
+const mouthFoam = new THREE.Mesh(new THREE.CircleGeometry(3.4, 24), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 }));
+mouthFoam.rotation.x = -Math.PI / 2; mouthFoam.scale.set(1.4, 0.7, 1); mouthFoam.position.set(0, -0.6, HALF_D + 1.4); scene.add(mouthFoam);
 
 // Shop islet in the middle of the river, with a small dock to each land
 const SHOP_R = 3.25;
@@ -268,7 +289,8 @@ const stickEnd = e => { if (e.pointerId !== stick.id) return; stick.id = null; s
 stickEl.addEventListener('pointerup', stickEnd); stickEl.addEventListener('pointercancel', stickEnd);
 
 // drag on the world to turn the camera
-let yaw = 0, pitch = 1.0, camDist = 60, drag = null;
+let yaw = 0, pitch = 0.95, camDist = 34, drag = null;
+const camFocus = new THREE.Vector3();
 canvas.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, yaw, pitch }; canvas.setPointerCapture(e.pointerId); });
 canvas.addEventListener('pointermove', e => {
   if (!drag) return;
@@ -276,7 +298,7 @@ canvas.addEventListener('pointermove', e => {
   pitch = Math.min(1.35, Math.max(0.5, drag.pitch + (e.clientY - drag.y) * 0.004));
 });
 canvas.addEventListener('pointerup', () => drag = null);
-canvas.addEventListener('wheel', e => { camDist = Math.min(80, Math.max(20, camDist + e.deltaY * 0.03)); }, { passive: true });
+canvas.addEventListener('wheel', e => { camDist = Math.min(60, Math.max(14, camDist + e.deltaY * 0.03)); }, { passive: true });
 
 // ================= INVENTORY UI =================
 const icons = renderIcons(ITEM_MODELS);
@@ -304,7 +326,7 @@ $('hotbar').addEventListener('click', e => {
 const STOCK_POOL = ['wood', 'stone', 'iron', 'steel', 'door', 'bread', 'apple', 'seeds', 'sapling', 'sword'];
 let todayStock = [];
 function rollShop() {
-  todayStock = STOCK_POOL.slice().sort(() => Math.random() - 0.5).slice(0, 6).map(k => ({ k, left: 2 + Math.floor(Math.random() * 6) }));
+  todayStock = STOCK_POOL.slice().sort(() => Math.random() - 0.5).slice(0, rules.shopItems).map(k => ({ k, left: 2 + Math.floor(Math.random() * 6) }));
 }
 function renderShop() {
   $('buyGrid').innerHTML = todayStock.map((s, i) => `<div class="card"><img class="ic" src="${icons[s.k]}" alt=""><b>${ITEMS[s.k].name}</b>
@@ -335,6 +357,7 @@ document.querySelectorAll('[data-close]').forEach(b => b.onclick = closeSheets);
 let placing = null; // {key, rot, ghost}
 function renderBuild() {
   $('buildGrid').innerHTML = Object.entries(BUILDS).map(([k, b]) => {
+    if (k === 'bridge' && !rules.bridge) return '';
     const blocked = k === 'bridge' && bridge;
     return `<div class="card"><img class="ic big" src="${buildIcons[k]}" alt=""><b>${b.name}</b><div class="cost">${costHtml(b.cost)}</div>
       ${b.note ? `<div class="cost" style="font-weight:600">${b.note}</div>` : ''}
@@ -474,7 +497,8 @@ let raining = false, storm = false, flash = 0;
 let weather = { kind: 'rain', start: 9.5, end: 11 };
 function rollWeather() {
   const r = Math.random();
-  if (r < 0.22) { const start = 8 + Math.random() * 8; weather = { kind: r < 0.06 ? 'storm' : 'rain', start, end: start + 1.5 + Math.random() * 3 }; }
+  const chance = RAIN_CHANCE[rules.weather];
+  if (r < chance) { const start = 8 + Math.random() * 8; weather = { kind: rules.storms && r < chance * 0.28 ? 'storm' : 'rain', start, end: start + 1.5 + Math.random() * 3 }; }
   else weather = null;
 }
 
@@ -516,13 +540,13 @@ function frame(now) {
   chopCd = Math.max(0, chopCd - dt);
 
   // time: one in-game hour every 3 seconds (a day is 72 seconds here)
-  clock += dt / 3;
-  if (clock >= 24) { clock -= 24; dayNum++; rollShop(); rollWeather(); if (!$('shopSheet').hidden) renderShop(); toast(`Day ${dayNum}. The shop has new stock!`); }
+  clock += dt * 24 / (rules.dayMinutes * 60);
+  if (clock >= 24) { clock -= 24; dayNum++; if (rules.days && dayNum > rules.days) { dayNum = rules.days; toast('That was the last day of the match!'); } rollShop(); rollWeather(); if (!$('shopSheet').hidden) renderShop(); toast(`Day ${dayNum}. The shop has new stock!`); }
   const wOn = !!weather && clock >= weather.start && clock < weather.end;
   if (wOn !== raining) { raining = wOn; storm = wOn && weather.kind === 'storm'; rain.visible = raining; if (wOn) toast(storm ? 'A storm is coming!' : 'It’s raining. Crops grow faster.'); }
 
   // hunger (walk slower when starving; you can never run)
-  if (playing) hunger = Math.max(0, hunger - dt * 0.35);
+  if (playing && rules.hunger) hunger = Math.max(0, hunger - dt * 0.35);
   $('hunger').style.width = hunger + '%';
 
   // movement, relative to the camera
@@ -598,20 +622,24 @@ function frame(now) {
     rainGeo.attributes.position.needsUpdate = true;
   }
   clouds.forEach(c => { c.position.x += c.userData.speed * dt; if (c.position.x > 80) c.position.x = -80; });
+  riverTex.offset.y -= dt * 0.18; fallMat.map.offset.y += dt * 0.9;
+  mouthFoam.material.opacity = 0.45 + Math.sin(tm * 3) * 0.12;
   foams.forEach(f => f.material.opacity = 0.25 + Math.sin(tm * 1.5) * 0.1);
   rings.forEach((r, i) => { r.rotation.z += dt * (i ? -1 : 1); r.position.y = 0.4 + Math.sin(tm * 2) * 0.12; });
 
   // camera follows you
   // wide view of both lands, drifting a little toward you
+  // In the menu the camera circles the whole island; in a match it follows you.
   if (!playing) yaw += dt * 0.06;
-  const fx = playing ? me.x * 0.35 : 0, fz = playing ? me.z * 0.35 + 5 : 0;
-  camera.position.set(fx + Math.sin(yaw) * Math.cos(pitch) * camDist, Math.sin(pitch) * camDist, fz + Math.cos(yaw) * Math.cos(pitch) * camDist);
-  camera.lookAt(fx, 0, fz);
+  const dist = playing ? camDist : 62;
+  camFocus.lerp(v3.set(playing ? me.x : 0, 0, playing ? me.z : 0), playing ? Math.min(1, dt * 6) : 1);
+  camera.position.set(camFocus.x + Math.sin(yaw) * Math.cos(pitch) * dist, Math.sin(pitch) * dist, camFocus.z + Math.cos(yaw) * Math.cos(pitch) * dist);
+  camera.lookAt(camFocus.x, 1, camFocus.z);
   renderer.render(scene, camera);
   placeTags();
 
   const hh = Math.floor(clock), mm = Math.floor((clock - hh) * 60);
-  $('day').textContent = 'Day ' + dayNum;
+  $('day').textContent = 'Day ' + dayNum + (rules.days ? ' / ' + rules.days : '');
   $('time').textContent = String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
   $('phase').textContent = raining ? (storm ? 'Storm' : 'Rain') : phaseName(clock);
   requestAnimationFrame(frame);
@@ -621,7 +649,15 @@ requestAnimationFrame(frame);
 
 return {
   portraits: () => renderIcons({ zino: () => buildFarmer('zino').g, copper: () => buildFarmer('copper').g }, { size: 256, angle: [0.35, 0.25], dist: 4.2 }),
-  play(skin) {
+  play(skin, match = null) {
+    if (match) {
+      rules = { ...rules, ...match.settings };
+      toast(`${match.settings.mode.replace(/v/g, ' v ')} started! Your team: ${match.team.join(', ')}`);
+    }
+    coins = rules.startCoins; hunger = 100;
+    myTree.wood = copperTree.wood = rules.treeWood;
+    rollShop(); rollWeather(); renderInv();
+    camFocus.set(leftX + 4, 0, 6);
     assignSkins(skin);
     bot.plan = BOT_PLAN.slice(); bot.wait = 0;
     yaw = 0; playing = true;

@@ -19,4 +19,5 @@ export function startMenu(game) {
   $('playBtn').onclick = () => game.play(skin);
   $('howBtn').onclick = () => { $('howSheet').hidden = false; };
   document.querySelector('[data-close-how]').onclick = () => { $('howSheet').hidden = true; };
+  return { skin: () => skin };
 }
