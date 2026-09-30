@@ -30,12 +30,12 @@ export function connect(profile, onMessage) {
 
 // ---------- offline demo ----------
 const DEMO_PLAYERS = [
-  { id: 'RF-KAYA7', name: 'Kaya', skin: 'copper', friend: true, online: true },
-  { id: 'RF-M1LO2', name: 'Milo', skin: 'zino', friend: true, online: true },
-  { id: 'RF-SUNNY', name: 'Sunny', skin: 'copper', friend: true, online: false },
-  { id: 'RF-TOMA5', name: 'Tomas', skin: 'zino', friend: false, online: true },
-  { id: 'RF-NOOR9', name: 'Noor', skin: 'copper', friend: false, online: true },
-  { id: 'RF-BRAM3', name: 'Bram', skin: 'zino', friend: false, online: true },
+  { id: 'RF-KAYA7', name: 'Kaya', look: 'amara', friend: true, online: true },
+  { id: 'RF-M1LO2', name: 'Milo', look: 'kenji', friend: true, online: true },
+  { id: 'RF-SUNNY', name: 'Sunny', look: 'rosa', friend: true, online: false },
+  { id: 'RF-TOMA5', name: 'Tomas', look: 'ivan', friend: false, online: true },
+  { id: 'RF-NOOR9', name: 'Noor', look: 'layla', friend: false, online: true },
+  { id: 'RF-BRAM3', name: 'Bram', look: 'copper', friend: false, online: true },
 ];
 
 function demo(profile, onMessage) {
@@ -43,14 +43,14 @@ function demo(profile, onMessage) {
   const reply = [];
   let me = null;
   const hub = new Hub({
-    users: DEMO_PLAYERS.map(p => ({ id: p.id, name: p.name + ' (demo)', skin: p.skin, friends: [], requests: [] })),
+    users: DEMO_PLAYERS.map(p => ({ id: p.id, name: p.name + ' (demo)', look: p.look, friends: [], requests: [] })),
     send: (id, msg) => {
       if (!me || id === me.id) return setTimeout(() => onMessage(msg), 0);
       reply.push([id, msg]);
       setTimeout(demoReact, 900);
     },
   });
-  me = hub.login({ id: myId, name: profile.name, skin: profile.skin, create: !!myId });
+  me = hub.login({ id: myId, name: profile.name, look: profile.look, create: !!myId });
   // demo players: some are your friends, some are online
   for (const p of DEMO_PLAYERS) {
     const u = hub.users.get(p.id);

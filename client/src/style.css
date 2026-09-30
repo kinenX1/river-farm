@@ -217,3 +217,29 @@ body.in-online #menu { display: none; }
 .ol-body.with-friends { grid-template-columns: minmax(0, 1fr) minmax(0, 290px); }
 .crown { position: static; font-size: 18px; margin-right: -2px; }
 .ol-friends { padding-right: 16px; }
+
+/* ---------- farmer picker + creator ---------- */
+.pick { display: grid; gap: 10px; justify-items: center; }
+.wide-sheet { width: min(760px, calc(100vw - 24px)); z-index: 10; }
+.farmer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.farmer-card.small { width: auto; padding: 5px; border-width: 3px; box-shadow: 0 3px 0 var(--wood-dark); }
+.farmer-card.small b { font-size: 14px; }
+.farmer-card.small span { font-size: 10px; display: block; }
+.farmer-card.small[aria-checked="true"] { transform: none; }
+.farmer-card.make img { background: radial-gradient(circle at 50% 60%, #ffe9b0, #f2c86a 70%); }
+.creator { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 12px; }
+.creator-preview { display: grid; gap: 6px; align-content: start; position: sticky; top: 0; }
+.creator-preview img { width: 100%; aspect-ratio: 1; border-radius: 12px; background: radial-gradient(circle at 50% 60%, #bfe8ff, #7fc4ee 70%); }
+.creator-preview input { font: 400 18px var(--display); text-align: center; border: 2px solid var(--paper-2); border-radius: 10px; padding: 5px; color: var(--ink); background: #fff; }
+.creator-opts { display: grid; gap: 8px; min-width: 0; }
+.opt h4 { margin: 0 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--wood); }
+.sw-row, .chip-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.swatch { width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 2px var(--paper-2); }
+.swatch.on { box-shadow: 0 0 0 3px var(--leaf-dark); }
+.chip { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--paper-2); color: var(--ink); border: 2px solid transparent; box-shadow: none; font-family: var(--body); font-weight: 800; }
+.chip.on { background: var(--leaf); color: #fff; border-color: var(--leaf-dark); }
+@media (max-height: 480px) { .creator { grid-template-columns: 150px minmax(0, 1fr); } .farmer-grid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); } }
+.creator { display: flex; align-items: flex-start; }
+.creator-preview { flex: 0 0 170px; width: 170px; }
+.creator-opts { flex: 1; }
+@media (max-height: 480px) { .creator-preview { flex-basis: 140px; width: 140px; } }

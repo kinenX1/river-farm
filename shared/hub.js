@@ -2,6 +2,7 @@
 // It never touches the network. Whoever runs it (the real server, or the
 // offline demo inside the game) passes a send(userId, message) function.
 // The same code runs on the server and in the browser.
+import { sanitizeLook, PRESETS } from './looks.js';
 
 export const TEAM_SIZES = {
   solo:  { name: 'Solo',  size: 1, modes: ['1v1', '1v1v1v1'] },
@@ -62,7 +63,7 @@ export class Hub {
     this.users = new Map();     // id -> user
     this.lobbies = new Map();   // id -> lobby
     this.botCount = 0;
-    for (const u of users) this.users.set(u.id, { ...u, friends: new Set(u.friends || []), requests: new Set(u.requests || []), online: false, lobby: null, bot: !!u.bot });
+    for (const u of users) this.users.set(u.id, { ...u, look: sanitizeLook(u.look || 'zino'), friends: new Set(u.friends || []), requests: new Set(u.requests || []), online: false, lobby: null, bot: !!u.bot });
   }
 
   // ---------- players ----------
@@ -74,14 +75,14 @@ export class Hub {
   }
 
   // Sign in with a saved id, or make a new player
-  login({ id, name, skin, create = false } = {}) {
+  login({ id, name, look, create = false } = {}) {
     let u = id && this.users.get(id);
     if (!u) {
-      u = { id: create && id ? id : this.newId(), name: 'Farmer', skin: 'zino', friends: new Set(), requests: new Set(), online: false, lobby: null, bot: false };
+      u = { id: create && id ? id : this.newId(), name: 'Farmer', look: sanitizeLook('zino'), friends: new Set(), requests: new Set(), online: false, lobby: null, bot: false };
       this.users.set(u.id, u);
     }
     if (name) u.name = String(name).trim().slice(0, 16) || u.name;
-    if (skin) u.skin = skin === 'copper' ? 'copper' : 'zino';
+    if (look) u.look = sanitizeLook(look);
     u.online = true;
     this.send(u.id, { type: 'me', user: this.publicUser(u, true) });
     this.pushFriends(u);
@@ -107,7 +108,7 @@ export class Hub {
   }
 
   publicUser(u, self = false) {
-    const out = { id: u.id, name: u.name, skin: u.skin, status: this.status(u), bot: u.bot };
+    const out = { id: u.id, name: u.name, status: this.status(u), bot: u.bot };
     if (self) out.lobby = u.lobby;
     return out;
   }
@@ -318,7 +319,7 @@ export class Hub {
     lobby.match = { id: this.newId('M-'), seed: Math.floor(this.random() * 2 ** 31), startedAt: this.now() };
     this.pushLobby(lobby);
     lobby.teams.forEach((t, land) => t.forEach(pid => {
-      this.send(pid, { type: 'match', lobby: this.lobbyView(lobby), land });
+      this.send(pid, { type: 'match', lobby: this.lobbyView(lobby), land, you: pid, looks: Object.fromEntries(this.members(lobby).map(id => [id, this.users.get(id).look])) });
     }));
     this.members(lobby).forEach(pid => { const p = this.users.get(pid); if (p && !p.bot) this.notifyFriends(p); });
   }
@@ -340,7 +341,8 @@ export class Hub {
 
   makeBot(lobby) {
     const name = BOT_NAMES[this.botCount++ % BOT_NAMES.length];
-    const bot = { id: this.newId('B-'), name, skin: this.random() < 0.5 ? 'zino' : 'copper', friends: new Set(), requests: new Set(), online: true, lobby: lobby.id, bot: true };
+    const keys = Object.keys(PRESETS);
+    const bot = { id: this.newId('B-'), name, look: sanitizeLook(keys[Math.floor(this.random() * keys.length)]), friends: new Set(), requests: new Set(), online: true, lobby: lobby.id, bot: true };
     this.users.set(bot.id, bot);
     return bot;
   }
@@ -366,7 +368,7 @@ export class Hub {
 
   // What the server saves to disk
   exportUsers() {
-    return [...this.users.values()].filter(u => !u.bot).map(u => ({ id: u.id, name: u.name, skin: u.skin, friends: [...u.friends], requests: [...u.requests] }));
+    return [...this.users.values()].filter(u => !u.bot).map(u => ({ id: u.id, name: u.name, look: u.look, friends: [...u.friends], requests: [...u.requests] }));
   }
 
   // Apply one message from a player. Errors go back to that player.
@@ -377,7 +379,7 @@ export class Hub {
         case 'friendRequest': return this.friendRequest(id, msg.id);
         case 'friendRespond': return this.friendRespond(id, msg.id, !!msg.accept);
         case 'removeFriend': return this.removeFriend(id, msg.id);
-        case 'profile': { const u = this.need(id); return this.login({ id, name: msg.name ?? u.name, skin: msg.skin ?? u.skin }); }
+        case 'profile': { const u = this.need(id); return this.login({ id, name: msg.name ?? u.name, look: msg.look ?? u.look }); }
         case 'quickJoin': return this.quickJoin(id, msg.mode);
         case 'createLobby': return this.createLobby(id, msg.settings);
         case 'updateSettings': return this.updateSettings(id, msg.settings);

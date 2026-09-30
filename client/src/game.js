@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { ITEMS, FOOD, START_INVENTORY, START_COINS } from './data/items.js';
 import * as B from './models/buildings.js';
 import * as N from './models/nature.js';
-import { buildFarmer, animateFarmer, SKINS } from './models/farmer.js';
+import { buildFarmer, animateFarmer, PRESETS } from './models/farmer.js';
+import { sanitizeLook } from '../../shared/looks.js';
 import { ITEM_MODELS } from './models/items.js';
 import { renderIcons } from './gfx/icons.js';
 import { tex } from './gfx/textures.js';
@@ -195,19 +196,23 @@ const animate = (f, moving, dt) => {
   animateFarmer(f, moving, dt * (moving ? WALK_ANIM : 1), reduceMotion);
   if (moving && (f.dustT = (f.dustT ?? 0) - dt) < 0) { f.dustT = 0.22; dust.puff(f.x, f.z); }
 };
-// Both farmers exist from the start; play(skin) decides which one is you.
-// You always live on the left land.
-const farmers = { zino: buildFarmer('zino'), copper: buildFarmer('copper') };
-Object.values(farmers).forEach(f => scene.add(f.g));
-let me = farmers.zino, copper = farmers.copper;
-function assignSkins(skin) {
-  me = farmers[skin]; copper = farmers[skin === 'zino' ? 'copper' : 'zino'];
+// You always live on the left land. The other land's farmer is the computer
+// (or, online, the other team).
+function addFarmer(look) { const f = buildFarmer(look); scene.add(f.g); blob(f); return f; }
+function removeFarmer(f) { scene.remove(f.g); if (f.blob) scene.remove(f.blob); }
+let me = addFarmer('zino'), copper = addFarmer('copper');
+me.x = leftX + 4; me.z = 6; copper.x = rightX - 2; copper.z = 6;
+function assignSkins(lookIn, rivalLook = null) {
+  const look = sanitizeLook(lookIn);
+  removeFarmer(me); removeFarmer(copper);
+  me = addFarmer(look);
+  const others = Object.keys(PRESETS).filter(k => PRESETS[k].name !== look.name);
+  copper = addFarmer(rivalLook || others[Math.floor(Math.random() * others.length)]);
   me.x = leftX + 4; me.z = 6; me.face = 0;
   copper.x = rightX - 2; copper.z = 6;
-  $('tagMe').textContent = 'You · ' + SKINS[skin].name;
-  $('tagCopper').textContent = SKINS[skin === 'zino' ? 'copper' : 'zino'].name;
+  $('tagMe').textContent = 'You · ' + look.name;
+  $('tagCopper').textContent = copper.look.name;
 }
-assignSkins('zino');
 
 // Respawn pads
 function respawnPad(x, z, color) {
@@ -237,7 +242,7 @@ function blob(f) {
   const m = new THREE.Mesh(new THREE.CircleGeometry(1.1, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false }));
   m.rotation.x = -Math.PI / 2; scene.add(m); f.blob = m;
 }
-Object.values(farmers).forEach(blob);
+
 
 // ================= WALKING RULES =================
 function onLand(x, z, side) {
@@ -648,7 +653,8 @@ $('action').onclick = () => actionFn && actionFn();
 requestAnimationFrame(frame);
 
 return {
-  portraits: () => renderIcons({ zino: () => buildFarmer('zino').g, copper: () => buildFarmer('copper').g }, { size: 256, angle: [0.35, 0.25], dist: 4.2 }),
+  portraits: () => renderIcons(Object.fromEntries(Object.keys(PRESETS).map(k => [k, () => buildFarmer(k).g])), { size: 200, angle: [0.35, 0.25], dist: 4.2 }),
+  portrait: look => renderIcons({ p: () => buildFarmer(look).g }, { size: 256, angle: [0.35, 0.25], dist: 4.2 }).p,
   play(skin, match = null) {
     if (match) {
       rules = { ...rules, ...match.settings };

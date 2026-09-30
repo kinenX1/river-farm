@@ -62,13 +62,11 @@
       <div class="logo-sign">River Farm</div>
       <p class="tagline">Build your life. Beat the land across the river.</p>
     </div>
-    <div class="pick" role="radiogroup" aria-label="Choose your farmer">
-      <button class="farmer-card" data-skin="zino" role="radio" aria-checked="true">
-        <img alt="" data-portrait="zino"><b>Mr. Zino</b><span>Old farmer, straw hat, white beard</span>
+    <div class="pick">
+      <button class="farmer-card" id="myFarmer" aria-checked="true">
+        <img alt="" id="myPortrait"><b id="myName">Mr. Zino</b><span id="myFrom">The old farmer</span>
       </button>
-      <button class="farmer-card" data-skin="copper" role="radio" aria-checked="false">
-        <img alt="" data-portrait="copper"><b>Mr. Copper</b><span>Plaid shirt, copper mustache</span>
-      </button>
+      <button class="wood" id="changeFarmer">Change farmer</button>
     </div>
     <div class="menu-actions">
       <button id="playBtn" class="big">Play solo</button>
@@ -86,6 +84,17 @@
   <p>Rain is rare. When it comes, your crops and trees grow much faster.</p>
 </div>
 <div id="online" hidden></div>
+<div class="panel sheet wide-sheet" id="farmerSheet" hidden>
+  <h2>Choose your farmer <button class="x red" data-close-farmer>Done</button></h2>
+  <div class="farmer-grid" id="farmerGrid"></div>
+</div>
+<div class="panel sheet wide-sheet" id="creatorSheet" hidden>
+  <h2>Make your farmer <span><button class="x wood" data-back-farmer>Back</button> <button class="x" data-save-look>Save</button></span></h2>
+  <div class="creator">
+    <div class="creator-preview"><img alt="Your farmer" id="creatorImg"><input id="lookName" maxlength="20" aria-label="Farmer name"></div>
+    <div class="creator-opts" id="creatorOpts"></div>
+  </div>
+</div>
 <div id="rotate"><div><span>&#9647;</span>Turn your phone sideways to play</div></div>
 <div id="fail" hidden>Your browser couldn't start 3D graphics. Try opening this page in Chrome.</div>
 

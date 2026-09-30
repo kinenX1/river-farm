@@ -48,7 +48,7 @@ wss.on('connection', ws => {
       const old = sockets.get(id);
       if (old && old !== ws) old.close(4000, 'Signed in somewhere else');
       sockets.set(id, ws);
-      me = hub.login({ id, name: msg.name, skin: msg.skin, create: !known });
+      me = hub.login({ id, name: msg.name, look: msg.look, create: !known });
       dirty = true;
       return;
     }

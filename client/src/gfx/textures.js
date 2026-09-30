@@ -150,3 +150,44 @@ const PAINTERS = {
     }
   }),
 };
+
+// Clothing patterns painted in the garment's own colour
+export function patternTex(pattern, color, rx = 3, ry = 3) {
+  const t = canvasTexture(`pat-${pattern}-${color}`, 128, (g, s) => {
+    const base = new THREE.Color(color), dark = '#' + base.clone().offsetHSL(0, 0, -0.18).getHexString(), light = '#' + base.clone().offsetHSL(0, 0, 0.15).getHexString();
+    g.fillStyle = color; g.fillRect(0, 0, s, s);
+    if (pattern === 'plaid') {
+      g.fillStyle = dark; for (let i = 0; i < s; i += 32) { g.globalAlpha = 0.55; g.fillRect(i, 0, 12, s); g.fillRect(0, i, s, 12); }
+      g.globalAlpha = 0.5; g.fillStyle = '#fff3d6'; for (let i = 20; i < s; i += 32) { g.fillRect(i, 0, 2, s); g.fillRect(0, i, s, 2); }
+    } else if (pattern === 'stripes') {
+      g.fillStyle = light; g.globalAlpha = 0.9; for (let y = 0; y < s; y += 16) g.fillRect(0, y, s, 7);
+    } else if (pattern === 'kente') {
+      // woven Ghanaian strips: gold, green, red and black blocks
+      const cols = ['#f2c21a', '#1f7a3a', '#c0271c', '#111111'];
+      for (let y = 0; y < s; y += 16) for (let x = 0; x < s; x += 16) {
+        g.fillStyle = cols[(x / 16 + (y / 16) * 3) % 4]; g.globalAlpha = 1; g.fillRect(x, y, 16, 16);
+        g.fillStyle = color; g.fillRect(x + 3, y + 6, 10, 4);
+      }
+    } else if (pattern === 'floral') {
+      for (let i = 0; i < 26; i++) {
+        const x = rand(0, s), y = rand(0, s), c = ['#ffffff', '#ffd84a', '#ff7aa8'][i % 3];
+        g.globalAlpha = 0.95; g.fillStyle = c;
+        for (let k = 0; k < 5; k++) { g.beginPath(); g.arc(x + Math.cos(k * 1.26) * 4, y + Math.sin(k * 1.26) * 4, 3, 0, 7); g.fill(); }
+        g.fillStyle = '#f2b632'; g.beginPath(); g.arc(x, y, 2, 0, 7); g.fill();
+      }
+    } else if (pattern === 'embroidered') {
+      g.globalAlpha = 1;
+      for (const y of [18, 64, 110]) {
+        g.fillStyle = '#ffd84a'; g.fillRect(0, y - 1, s, 2);
+        for (let x = 8; x < s; x += 16) {
+          g.fillStyle = ['#c0271c', '#1f7a3a', '#274a7a', '#d94a8a'][(x / 16) % 4];
+          g.beginPath(); g.moveTo(x, y - 7); g.lineTo(x + 6, y); g.lineTo(x, y + 7); g.lineTo(x - 6, y); g.fill();
+        }
+      }
+    }
+    g.globalAlpha = 1;
+    for (let y = 0; y < s; y += 2) { g.fillStyle = `rgba(0,0,0,${y % 4 ? 0.03 : 0.07})`; g.fillRect(0, y, s, 1); }
+  });
+  const c = t.clone(); c.repeat.set(rx, ry); c.needsUpdate = true;
+  return c;
+}

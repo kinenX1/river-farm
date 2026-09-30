@@ -20,7 +20,7 @@ const SETTING_LABELS = {
 };
 const TOGGLES = { storms: 'Storms', disasters: 'Disasters', bridge: 'Bridge allowed', hunger: 'Hunger', fillBots: 'Fill empty spots with bots' };
 
-export function startOnline({ getSkin, onMatch }) {
+export function startOnline({ getLook, onMatch }) {
   const root = $('online');
   let net = null, me = null, friends = [], requests = [], lobby = null, search = [], invites = [];
   let screen = 'home', size = 'solo', mode = '1v1', draft = { ...DEFAULT_SETTINGS }, showFriends = false, tickTimer = null;
@@ -57,7 +57,7 @@ export function startOnline({ getSkin, onMatch }) {
     if (!net) {
       root.innerHTML = '<div class="ol-loading">Connecting…</div>';
       const saved = load('rf-profile', {});
-      net = await connect({ id: saved.id, name: saved.name || 'Farmer', skin: getSkin() }, onMessage);
+      net = await connect({ id: saved.id, name: saved.name || 'Farmer', look: getLook() }, onMessage);
       if (net.mode === 'demo') toast('No server found: you’re in demo mode with pretend players');
       clearInterval(tickTimer); tickTimer = setInterval(() => screen === 'lobby' && renderTimer(), 500);
     }
@@ -253,7 +253,7 @@ export function startOnline({ getSkin, onMatch }) {
     if (e.target.dataset.form === 'search') net?.send({ type: 'search', query: $('olSearch').value });
   });
   root.addEventListener('change', e => {
-    if (e.target.id === 'olName') { net?.send({ type: 'profile', name: e.target.value, skin: getSkin() }); return; }
+    if (e.target.id === 'olName') { net?.send({ type: 'profile', name: e.target.value, look: getLook() }); return; }
     if (e.target.id?.startsWith('set-') && screen === 'lobby' && lobby?.host === me?.id) net?.send({ type: 'updateSettings', settings: readSettings() });
   });
 
