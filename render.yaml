@@ -1,0 +1,13 @@
+# One-click hosting for the online server on Render (free plan works).
+# render.com -> New -> Blueprint -> pick this repo.
+services:
+  - type: web
+    name: sides-of-the-river-server
+    runtime: node
+    plan: free
+    rootDir: .
+    buildCommand: npm install --workspace server --include-workspace-root
+    startCommand: node server/src/index.js
+    envVars:
+      - key: NODE_VERSION
+        value: 22

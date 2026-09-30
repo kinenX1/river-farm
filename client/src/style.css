@@ -243,3 +243,74 @@ body.in-online #menu { display: none; }
 .creator-preview { flex: 0 0 170px; width: 170px; }
 .creator-opts { flex: 1; }
 @media (max-height: 480px) { .creator-preview { flex-basis: 140px; width: 140px; } }
+
+/* ---------- match HUD additions ---------- */
+.bar.hp i { background: #d9453b; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.tabs button { font-size: 14px; padding: 5px 12px; background: var(--paper-2); color: var(--ink); border-color: var(--paper-2); box-shadow: none; font-family: var(--body); font-weight: 800; }
+.tabs button[aria-selected="true"] { background: var(--wood); color: var(--paper); border-color: var(--wood-dark); }
+.tag.mate { background: rgba(47,138,60,.85); }
+.tag.me { background: rgba(43,29,14,.85); }
+.tag .hpbar { display: block; height: 3px; margin-top: 2px; background: rgba(255,255,255,.3); border-radius: 2px; overflow: hidden; }
+.tag .hpbar i { display: block; height: 100%; background: #ff6b5a; }
+#deathScreen { inset: 0; display: grid; place-items: center; background: rgba(120,20,10,.35); z-index: 6; }
+#deathScreen[hidden] { display: none; }
+#deathScreen div { display: grid; gap: 6px; text-align: center; color: var(--paper); font-family: var(--display); text-shadow: 0 3px 0 var(--wood-dark); }
+#deathScreen b { font-weight: 400; font-size: 40px; }
+#deathScreen span { font-size: 20px; }
+
+/* ======================================================================
+   Motion: intro title card, menu entrances, screen changes, pops
+   ====================================================================== */
+#intro { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; align-content: center; gap: 0; background: radial-gradient(circle at 50% 60%, #1c3f6e, #0f1830 70%); pointer-events: none; animation: introOut .7s ease-in 2.3s forwards; }
+#intro h1 { margin: 0; display: grid; justify-items: center; font-family: var(--display); font-weight: 400; color: var(--paper); text-shadow: 0 5px 0 var(--wood-dark); line-height: 1; }
+#intro h1 span:first-child { font-size: clamp(38px, 10vh, 84px); animation: dropIn .8s cubic-bezier(.2,1.6,.4,1) .2s both; }
+#intro h1 span:last-child { font-size: clamp(26px, 6.5vh, 54px); color: #9fe0ff; animation: dropIn .8s cubic-bezier(.2,1.6,.4,1) .45s both; }
+.intro-river { width: min(600px, 80vw); height: auto; margin-top: -10px; order: 2; }
+.intro-river path { fill: none; stroke: #45bdf0; stroke-width: 10; stroke-linecap: round; stroke-dasharray: 800; stroke-dashoffset: 800; animation: draw 1.4s ease-out .5s forwards, flow 3s linear 1.9s infinite; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes flow { from { stroke-dasharray: 40 20; stroke-dashoffset: 0; } to { stroke-dasharray: 40 20; stroke-dashoffset: -120; } }
+@keyframes introOut { to { opacity: 0; visibility: hidden; } }
+@keyframes dropIn { from { opacity: 0; transform: translateY(-60px) scale(.9); } to { opacity: 1; transform: none; } }
+
+.logo-sign { display: inline-grid; line-height: .95; transform-origin: 50% -40px; animation: signDrop 1s cubic-bezier(.2,1.5,.4,1) 2.4s both, signSwing 5s ease-in-out 3.4s infinite; }
+.logo-sign span:last-child { font-size: .62em; color: #bfe8ff; }
+@keyframes signDrop { from { opacity: 0; transform: translateY(-120%) rotate(-12deg); } to { opacity: 1; transform: rotate(-3deg); } }
+@keyframes signSwing { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(-1deg); } }
+.tagline { animation: fadeUp .6s ease-out 3s both; }
+.pick { animation: slideLeft .7s cubic-bezier(.2,1.2,.4,1) 2.7s both; }
+.menu-actions > * { animation: popIn .5s cubic-bezier(.2,1.6,.4,1) both; }
+.menu-actions > :nth-child(1) { animation-delay: 3s; } .menu-actions > :nth-child(2) { animation-delay: 3.1s; } .menu-actions > :nth-child(3) { animation-delay: 3.2s; }
+#playBtn { animation: popIn .5s cubic-bezier(.2,1.6,.4,1) 3s both, pulse 2.4s ease-in-out 4s infinite; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes slideLeft { from { opacity: 0; transform: translateX(80px); } to { opacity: 1; transform: none; } }
+@keyframes popIn { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
+@keyframes pulse { 0%, 100% { box-shadow: 0 4px 0 var(--leaf-dark), 0 0 0 0 rgba(92,174,58,.6); } 50% { box-shadow: 0 4px 0 var(--leaf-dark), 0 0 0 10px rgba(92,174,58,0); } }
+
+/* online screens slide in whenever they change */
+.ol-main > * { animation: fadeUp .35s ease-out both; }
+.ol-cards > * { animation: popIn .4s cubic-bezier(.2,1.5,.4,1) both; }
+.ol-cards > :nth-child(2) { animation-delay: .06s; } .ol-cards > :nth-child(3) { animation-delay: .12s; } .ol-cards > :nth-child(4) { animation-delay: .18s; }
+.ol-player { animation: slideLeft .35s ease-out both; }
+.ol-card, .farmer-card, .card { transition: transform .15s ease, box-shadow .15s ease; }
+.ol-card:hover, .farmer-card:hover { transform: translateY(-4px) rotate(-.5deg); }
+.crown { display: inline-block; animation: crown 1.8s ease-in-out infinite; }
+@keyframes crown { 0%, 100% { transform: translateY(0) rotate(-8deg); } 50% { transform: translateY(-3px) rotate(8deg); } }
+.ol-timer.hot b { display: inline-block; animation: tick 1s steps(1) infinite; }
+@keyframes tick { 50% { color: #c0392b; } }
+
+/* sheets and HUD */
+.sheet:not([hidden]) { animation: sheetIn .28s cubic-bezier(.2,1.3,.4,1); }
+@keyframes sheetIn { from { opacity: 0; transform: translate(-50%, -46%) scale(.94); } to { opacity: 1; transform: translate(-50%, -50%); } }
+#toast.pop { animation: toastPop .35s cubic-bezier(.2,1.6,.4,1); }
+@keyframes toastPop { from { transform: translateX(-50%) scale(.7); } to { transform: translateX(-50%) scale(1); } }
+#action.ready { animation: pulse 1.6s ease-in-out infinite; }
+body.hurt::after { content: ''; position: fixed; inset: 0; z-index: 7; pointer-events: none; box-shadow: inset 0 0 120px rgba(220,30,20,.7); animation: hurt .5s ease-out forwards; }
+@keyframes hurt { to { opacity: 0; } }
+.card .two { display: flex; gap: 6px; } .card .two button { flex: 1; }
+.card .note { font-weight: 600; }
+.top-right { align-items: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition: none !important; }
+}

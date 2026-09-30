@@ -1,0 +1,6 @@
+{
+  "appId": "com.kinen.sidesoftheriver",
+  "appName": "The Sides of the River",
+  "webDir": "dist",
+  "android": { "backgroundColor": "#0f1830" }
+}

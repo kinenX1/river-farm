@@ -21,6 +21,16 @@ function ingot(color, rough) {
   return g;
 }
 
+function seedBag(color) {
+  const g = new THREE.Group();
+  const sack = mesh(sphereG(0.6, 24), textured('cloth', 0xc9a978, 3, 3), 0, -0.1, 0, g); sack.scale.set(1, 1.1, 0.9);
+  mesh(cylG(0.18, 0.3, 0.35, 16), textured('cloth', 0xc9a978, 2, 1), 0, 0.6, 0, g);
+  mesh(cylG(0.2, 0.2, 0.08, 16), mat(0x8c2a1c), 0, 0.52, 0, g);
+  mesh(sphereG(0.22, 12), mat(color), 0, -0.05, 0.5, g).scale.z = 0.3;   // picture of the crop
+  for (let i = 0; i < 6; i++) mesh(sphereG(0.06, 8), mat(0x8bbf3c), (Math.random() - 0.5) * 0.3, 0.8, (Math.random() - 0.5) * 0.2, g).scale.y = 1.5;
+  return g;
+}
+
 export const ITEM_MODELS = {
   wood: () => {
     const g = new THREE.Group();
@@ -78,6 +88,56 @@ export const ITEM_MODELS = {
     mesh(cylG(0.18, 0.3, 0.35, 16), textured('cloth', 0xc9a978, 2, 1), 0, 0.6, 0, g);
     mesh(cylG(0.2, 0.2, 0.08, 16), mat(0x8c2a1c), 0, 0.52, 0, g);
     for (let i = 0; i < 6; i++) mesh(sphereG(0.06, 8), mat(0x8bbf3c), (Math.random() - 0.5) * 0.3, 0.8, (Math.random() - 0.5) * 0.2, g).scale.y = 1.5;
+    return g;
+  },
+  carrotSeeds: () => seedBag(0xe8801a),
+  pumpkinSeeds: () => seedBag(0xe8801a),
+  cornSeeds: () => seedBag(0xf2d24a),
+  sunSeeds: () => seedBag(0xffc21a),
+  glass: () => {
+    const g = new THREE.Group();
+    mesh(boxG(1.4, 1.4, 0.1), mat(0xcff2ff, { transparent: true, opacity: 0.55, roughness: 0.05, metalness: 0.2 }), 0, 0, 0, g);
+    mesh(boxG(1.5, 0.08, 0.14), mat(0xf4f4f4), 0, 0.72, 0, g); mesh(boxG(1.5, 0.08, 0.14), mat(0xf4f4f4), 0, -0.72, 0, g);
+    g.rotation.y = 0.5;
+    return g;
+  },
+  carrot: () => {
+    const g = new THREE.Group();
+    mesh(new THREE.ConeGeometry(0.28, 1.3, 16), mat(0xe8801a, { roughness: 0.6 }), 0, -0.2, 0, g).rotation.x = Math.PI;
+    for (let k = 0; k < 4; k++) { const l = mesh(new THREE.ConeGeometry(0.08, 0.6, 6), mat(0x4fb546), Math.cos(k * 1.6) * 0.08, 0.7, Math.sin(k * 1.6) * 0.08, g); l.rotation.z = Math.cos(k * 1.6) * 0.4; }
+    g.rotation.z = -0.6;
+    return g;
+  },
+  pumpkin: () => {
+    const g = new THREE.Group();
+    for (let k = 0; k < 8; k++) { const s = mesh(sphereG(0.45, 16), mat(0xe8801a, { roughness: 0.6 }), Math.cos(k / 8 * 6.28) * 0.28, 0, Math.sin(k / 8 * 6.28) * 0.28, g); s.scale.set(0.7, 1, 0.7); }
+    mesh(cylG(0.07, 0.09, 0.3, 8), mat(0x5e3b1a), 0, 0.5, 0, g);
+    return g;
+  },
+  corn: () => {
+    const g = new THREE.Group();
+    const cob = mesh(cylG(0.28, 0.24, 1.3, 16), mat(0xf2d24a, { roughness: 0.5 }), 0, 0, 0, g);
+    for (let k = 0; k < 3; k++) { const h = mesh(boxG(0.3, 1.2, 0.03), mat(0x7cc242), Math.cos(k * 2.1) * 0.25, -0.15, Math.sin(k * 2.1) * 0.25, g); h.rotation.set(0, -k * 2.1, 0.25); }
+    void cob; g.rotation.z = -0.5;
+    return g;
+  },
+  sunflower: () => {
+    const g = new THREE.Group();
+    mesh(cylG(0.25, 0.25, 0.1, 20), mat(0x5e3b1a), 0, 0, 0, g).rotation.x = Math.PI / 2;
+    for (let k = 0; k < 14; k++) { const p = mesh(sphereG(0.15, 8), mat(0xffc21a), Math.cos(k / 14 * 6.28) * 0.42, Math.sin(k / 14 * 6.28) * 0.42, 0, g); p.scale.set(1.5, 0.6, 0.3); p.rotation.z = k / 14 * 6.28; }
+    mesh(cylG(0.05, 0.05, 1, 6), mat(0x4f9a36), 0, -0.8, -0.05, g);
+    return g;
+  },
+  egg: () => {
+    const g = new THREE.Group();
+    mesh(sphereG(0.5, 24), mat(0xf4e3c8, { roughness: 0.5 }), 0, 0, 0, g).scale.set(0.8, 1.05, 0.8);
+    return g;
+  },
+  honey: () => {
+    const g = new THREE.Group();
+    mesh(cylG(0.45, 0.42, 0.8, 20), mat(0xe8a020, { roughness: 0.15, transparent: true, opacity: 0.9 }), 0, 0, 0, g);
+    mesh(cylG(0.48, 0.48, 0.14, 20), textured('cloth', 0xd9453b, 2, 1), 0, 0.46, 0, g);
+    mesh(boxG(0.5, 0.3, 0.02), mat(0xf4ecd8), 0, 0, 0.44, g);
     return g;
   },
   sapling: () => {

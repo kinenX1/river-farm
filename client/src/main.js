@@ -10,3 +10,6 @@ const online = startOnline({
   onMatch: match => game.play(menu.look(), match),
 });
 document.getElementById('onlineBtn').onclick = () => online.open();
+// Leave a match: back to the start menu (online, this also leaves the lobby)
+document.getElementById('leaveBtn').onclick = () => online.leave().finally(() => location.reload());
+setTimeout(() => document.getElementById('intro')?.remove(), 3200);

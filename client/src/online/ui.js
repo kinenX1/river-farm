@@ -67,10 +67,13 @@ export function startOnline({ getLook, onMatch }) {
   function close() { root.hidden = true; document.body.classList.remove('in-online'); }
 
   function finishMatch(m) {
-    const land = m.land;
-    const team = m.lobby.teams[land].map(p => p.name);
+    const lobbyView = net.mode === 'demo'
+      // demo players are pretend: the game runs them like bots
+      ? { ...m.lobby, teams: m.lobby.teams.map(t => t.map(p => ({ ...p, bot: p.bot || p.id !== m.you }))) }
+      : m.lobby;
+    const team = lobbyView.teams[m.land].map(p => p.name);
     close();
-    onMatch({ settings: m.lobby.settings, team, land, lobby: m.lobby });
+    onMatch({ settings: m.lobby.settings, team, land: m.land, lobby: lobbyView, you: m.you, looks: m.looks, host: m.lobby.host === m.you, sync: net.matchSync(m) });
   }
 
   // ---------- rendering ----------
@@ -257,5 +260,5 @@ export function startOnline({ getLook, onMatch }) {
     if (e.target.id?.startsWith('set-') && screen === 'lobby' && lobby?.host === me?.id) net?.send({ type: 'updateSettings', settings: readSettings() });
   });
 
-  return { open };
+  return { open, leave: async () => { net?.send({ type: 'leave' }); await new Promise(r => setTimeout(r, 300)); } };
 }

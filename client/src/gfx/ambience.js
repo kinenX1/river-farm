@@ -25,14 +25,14 @@ export function createSky(scene) {
         gl_FragColor = vec4(col, 1.0);
       }`,
   });
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(300, 32, 16), mat);
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(1200, 32, 16), mat);
   dome.renderOrder = -1;
   scene.add(dome);
 
   // stars, faded in at night
   const n = 600, pos = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) {
-    const v = new THREE.Vector3(Math.random() - 0.5, Math.random() * 0.9 + 0.05, Math.random() - 0.5); v.normalize().multiplyScalar(280);
+    const v = new THREE.Vector3(Math.random() - 0.5, Math.random() * 0.9 + 0.05, Math.random() - 0.5); v.normalize().multiplyScalar(1100);
     pos.set([v.x, v.y, v.z], i * 3);
   }
   const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -42,7 +42,7 @@ export function createSky(scene) {
   return {
     update(sunPos, skyColor, night) {
       uniforms.sunDir.value.copy(sunPos).normalize();
-      uniforms.horizon.value.copy(skyColor).lerp(new THREE.Color(0xffffff), night ? 0 : 0.35);
+      uniforms.horizon.value.copy(skyColor);
       uniforms.top.value.copy(skyColor).multiplyScalar(night ? 0.6 : 0.62);
       uniforms.sunColor.value.setHSL(0.1, 0.9, 0.7);
       stars.material.opacity = night;
@@ -52,17 +52,17 @@ export function createSky(scene) {
 
 // ---------- grass that bends in the wind ----------
 export function createGrass(scene, areas, count = 5000) {
-  const blade = new THREE.PlaneGeometry(0.12, 0.7, 1, 3);
-  blade.translate(0, 0.35, 0);
+  const blade = new THREE.PlaneGeometry(0.1, 0.45, 1, 3);
+  blade.translate(0, 0.225, 0);
   const p = blade.attributes.position;
-  for (let i = 0; i < p.count; i++) { const y = p.getY(i); p.setX(i, p.getX(i) * (1 - y / 0.75)); } // taper
+  for (let i = 0; i < p.count; i++) { const y = p.getY(i); p.setX(i, p.getX(i) * (1 - y / 0.5)); } // taper
   const uniforms = { time: { value: 0 }, wind: { value: 1 } };
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide, roughness: 0.9 });
   mat.onBeforeCompile = shader => {
     shader.uniforms.time = uniforms.time; shader.uniforms.wind = uniforms.wind;
     shader.vertexShader = 'uniform float time; uniform float wind; varying float vH;\n' + shader.vertexShader.replace('#include <begin_vertex>', `
       #include <begin_vertex>
-      vH = position.y / 0.7;
+      vH = position.y / 0.45;
       vec4 wp = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
       float sway = sin(time * 1.8 + wp.x * 0.35 + wp.z * 0.25) * 0.5 + sin(time * 3.1 + wp.x) * 0.15;
       transformed.x += sway * wind * 0.22 * position.y * position.y * 2.5;
@@ -76,7 +76,7 @@ export function createGrass(scene, areas, count = 5000) {
   const color = new THREE.Color();
   for (let i = 0; i < count; i++) {
     const a = areas[i % areas.length];
-    pos.set(a.x + (Math.random() - 0.5) * a.w, 0.44, a.z + (Math.random() - 0.5) * a.d);
+    const pt = a.sample(); pos.set(pt.x, 0.44, pt.z);
     q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.random() * Math.PI);
     const k = 0.6 + Math.random() * 0.8; s.set(k, k * (0.7 + Math.random() * 0.6), k);
     m.compose(pos, q, s); mesh.setMatrixAt(i, m);
@@ -84,7 +84,7 @@ export function createGrass(scene, areas, count = 5000) {
   }
   mesh.receiveShadow = true;
   scene.add(mesh);
-  return { update(t, windy) { uniforms.time.value = t; uniforms.wind.value = windy; } };
+  return { dispose: () => scene.remove(mesh), update(t, windy) { uniforms.time.value = t; uniforms.wind.value = windy; } };
 }
 
 // ---------- butterflies (day) and fireflies (night) ----------
@@ -98,11 +98,11 @@ export function createCritters(scene, areas) {
     const wm = new THREE.MeshStandardMaterial({ color: colors[i % 4], side: THREE.DoubleSide, roughness: 0.6 });
     const l = new THREE.Mesh(wingGeo, wm), r = new THREE.Mesh(wingGeo, wm); r.scale.x = -1;
     g.add(l, r);
-    g.userData = { l, r, home: new THREE.Vector3(a.x + (Math.random() - 0.5) * a.w * 0.8, 0, a.z + (Math.random() - 0.5) * a.d * 0.8), phase: Math.random() * 10 };
+    const pt = a.sample(); g.userData = { l, r, home: new THREE.Vector3(pt.x, 0, pt.z), phase: Math.random() * 10 };
     scene.add(g); flies.push(g);
   }
   const n = 60, pos = new Float32Array(n * 3), seeds = [];
-  for (let i = 0; i < n; i++) { const a = areas[i % areas.length]; seeds.push([a.x + (Math.random() - 0.5) * a.w, a.z + (Math.random() - 0.5) * a.d, Math.random() * 10]); }
+  for (let i = 0; i < n; i++) { const pt = areas[i % areas.length].sample(); seeds.push([pt.x, pt.z, Math.random() * 10]); }
   const fg = new THREE.BufferGeometry(); fg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const fireflies = new THREE.Points(fg, new THREE.PointsMaterial({ color: 0xfff27a, size: 0.35, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
   scene.add(fireflies);

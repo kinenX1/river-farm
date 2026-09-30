@@ -4,6 +4,7 @@
 //
 // Run with `npm run server` from the repo root. PORT defaults to 8787.
 import { WebSocketServer } from 'ws';
+import { createServer } from 'node:http';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,7 +34,10 @@ function save() {
 }
 setInterval(() => { hub.tick(); save(); }, 1000);
 
-const wss = new WebSocketServer({ port: PORT });
+// plain HTTP answers "ok" so hosting services can check the server is up
+const http = createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/plain' }); res.end('The Sides of the River server is running'); });
+const wss = new WebSocketServer({ server: http });
+http.listen(PORT);
 wss.on('connection', ws => {
   let me = null;
   ws.on('message', raw => {

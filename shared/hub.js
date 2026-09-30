@@ -5,21 +5,21 @@
 import { sanitizeLook, PRESETS } from './looks.js';
 
 export const TEAM_SIZES = {
-  solo:  { name: 'Solo',  size: 1, modes: ['1v1', '1v1v1v1'] },
+  solo:  { name: 'Solo',  size: 1, modes: ['1v1', '1v1v1'] },
   duo:   { name: 'Duo',   size: 2, modes: ['2v2', '2v2v2'] },
   trio:  { name: 'Trio',  size: 3, modes: ['3v3', '3v3v3'] },
-  squad: { name: 'Squad', size: 4, modes: ['4v4', '4v4v4v4'] },
+  squad: { name: 'Squad', size: 4, modes: ['4v4', '4v4v4'] },
 };
 
 export const MODES = {
   '1v1':     { teamSize: 1, teams: 2 },
-  '1v1v1v1': { teamSize: 1, teams: 4 },
+  '1v1v1':   { teamSize: 1, teams: 3 },
   '2v2':     { teamSize: 2, teams: 2 },
   '2v2v2':   { teamSize: 2, teams: 3 },
   '3v3':     { teamSize: 3, teams: 2 },
   '3v3v3':   { teamSize: 3, teams: 3 },
   '4v4':     { teamSize: 4, teams: 2 },
-  '4v4v4v4': { teamSize: 4, teams: 4 },
+  '4v4v4':   { teamSize: 4, teams: 3 },
 };
 
 // Everything the host of a custom lobby can change
@@ -75,7 +75,7 @@ export class Hub {
   }
 
   // Sign in with a saved id, or make a new player
-  login({ id, name, look, create = false } = {}) {
+  login({ id, name, look, create = false, friends = null } = {}) {
     let u = id && this.users.get(id);
     if (!u) {
       u = { id: create && id ? id : this.newId(), name: 'Farmer', look: sanitizeLook('zino'), friends: new Set(), requests: new Set(), online: false, lobby: null, bot: false };
@@ -83,6 +83,11 @@ export class Hub {
     }
     if (name) u.name = String(name).trim().slice(0, 16) || u.name;
     if (look) u.look = sanitizeLook(look);
+    if (Array.isArray(friends)) for (const f of friends.slice(0, 200)) {
+      const other = this.users.get(f);
+      if (other && !other.bot && other.id !== u.id && (other.friends.has(u.id) || other.knownFriends?.has(u.id))) { u.friends.add(f); other.friends.add(u.id); }
+      (u.knownFriends ||= new Set()).add(f);
+    }
     u.online = true;
     this.send(u.id, { type: 'me', user: this.publicUser(u, true) });
     this.pushFriends(u);
@@ -366,6 +371,19 @@ export class Hub {
     for (const id of this.members(lobby)) if (!this.users.get(id)?.bot) this.send(id, { type: 'lobby', lobby: view });
   }
 
+  // In a match every player sends their state ~10 times a second; pass it on
+  // to the other people in the match. The host also sends the bots' states.
+  relayState(id, states) {
+    const u = this.need(id), lobby = u.lobby && this.lobbies.get(u.lobby);
+    if (!lobby || lobby.state !== 'playing' || !states || typeof states !== 'object') return;
+    const members = this.members(lobby), out = {};
+    for (const [k, s] of Object.entries(states)) {
+      if (k === id || (lobby.host === id && this.users.get(k)?.bot && members.includes(k))) out[k] = s;
+    }
+    if (JSON.stringify(out).length > 24000) return;
+    for (const m of members) if (m !== id && !this.users.get(m)?.bot) this.send(m, { type: 'mstate', states: out });
+  }
+
   // What the server saves to disk
   exportUsers() {
     return [...this.users.values()].filter(u => !u.bot).map(u => ({ id: u.id, name: u.name, look: u.look, friends: [...u.friends], requests: [...u.requests] }));
@@ -389,6 +407,7 @@ export class Hub {
         case 'acceptInvite': return this.acceptInvite(id, msg.lobbyId, msg.team);
         case 'start': return this.start(id);
         case 'leave': return this.leave(id);
+        case 'mstate': return this.relayState(id, msg.states);
       }
     } catch (e) {
       this.send(id, { type: 'error', message: e.message });

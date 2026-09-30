@@ -1,12 +1,10 @@
-# River Farm
+# The Sides of the River
 
-An online farm-versus game for Android. You and your team start on a flat piece of
-land with one tree. Another team lives on the land across the river. Chop, sell at
-the river shop, build a farm, a house, a barn, a bridge (if you want one), and
-build your life before they do.
-
-Farmers: **Mr. Zino** (old farmer, straw hat) and **Mr. Copper**. They're fat and
-they waddle. Nobody runs.
+An online farm-versus game for Android. You and your team start on a flat
+piece of land with one tree. The other team (or two teams) live across the
+river. Chop, trade at the shop on the river island, grow crops, raise chickens
+and bees, build a house, a barn, a windmill, a bridge if you want one, and
+build your life before they do. Everyone is round and waddles. Nobody runs.
 
 ## Run it
 
@@ -14,60 +12,56 @@ You need Node.js 20 or newer.
 
 ```bash
 npm install
-npm run dev        # the game, at http://localhost:5173
+npm run dev        # the game, at http://localhost:5173 (also prints a link for your phone)
 npm run server     # the online server, at ws://localhost:8787
-npm test           # server tests
+npm test           # online tests
 ```
 
-`npm run dev` also prints a Network address. Open it on your phone (same Wi-Fi),
-turn the phone sideways, and play.
+Turn the phone sideways: the game is landscape only.
+
+## Getting it on phones and Google Play
+
+See [docs/GOOGLE_PLAY.md](docs/GOOGLE_PLAY.md): test APK for friends, free
+server hosting, and the Play Store steps. GitHub Actions builds the app on
+every push to `main`.
+
+## What's in it
+
+- **Farmers**: 12 ready-made farmers from around the world (India, Oman,
+  Jordan, Russia, Ghana, Nigeria, Japan, Mexico and more) or make your own:
+  skin tone, hair, beard, headwear, clothes, colours and patterns.
+- **Online**: player IDs, find players, friends with online status, invites.
+  Play → Solo / Duo / Trio / Squad → 1v1, 1v1v1, 2v2, 2v2v2, 3v3, 3v3v3, 4v4,
+  4v4v4 → random lobby or your own lobby with custom rules. The host (crown)
+  starts; random lobbies start on their own after 1 + 2 minutes. Bots fill
+  empty spots. In a match you see everyone move, build, chop and fight live.
+- **Map**: 2 lands for two-team modes, 3 lands around a lake for three-team
+  modes. Rivers, a spring, waterfalls into the sea, a shop island with docks.
+- **Building**: 30 things in 5 tabs: wheat, carrot, pumpkin, corn and
+  sunflower fields, apple trees, greenhouse, scarecrow, well, windmill, silo,
+  house, bed, barn, mailbox, chicken coop, beehive, dog house, duck pond, lamp
+  post, campfire, bench, picnic table, flower bed, haystack, cart, team flag,
+  fences, stone walls, bridges.
+- **Life**: day and night, rare rain that grows crops faster, storms, hunger,
+  health, sleeping in your bed, sword fights, respawn at your bed or pad.
+- **Shop**: 6 random items a day, the same for every player in a match.
 
 ## Folders
 
 ```
-client/              the game (Three.js + Vite)
-  index.html         HUD: stats, hotbar, joystick, shop and build sheets
-  src/game.js        world rules: shop, building, weather, day/night, the bot
-  src/menu.js        start menu: pick your farmer, Play
-  src/models/        3D models: farmers, buildings, trees/rocks/flowers, items
-  src/gfx/           painted textures, materials, 3D item icons
-  src/data/items.js  every item and its shop price
-  src/style.css
-  src/online/        online menus: friends, Play steps, lobby; server connection
-shared/hub.js        the online brain: players, friends, invites, lobbies,
-                     matchmaking, lobby timers (used by server AND the demo)
-server/src/index.js  WebSocket server, saves players to server/data/
-server/test/         online tests
+client/                the game (Three.js + Vite), and client/android (Capacitor app)
+  src/game.js          the match: players, moving, actions, shop, building, sync
+  src/world/map.js     the island with 2 or 3 lands, rivers, shop, bridges
+  src/models/          3D models: farmers, buildings, nature, items
+  src/gfx/             painted textures, materials, sky, grass, icons
+  src/data/            items and the build catalog
+  src/online/          online menus and the connection (server, shared link, demo)
+  src/menu.js          start menu, farmer picker and creator
+shared/                code used by both server and game
+  hub.js               players, friends, invites, lobbies, matchmaking, timers
+  looks.js             what a farmer looks like, and the 12 presets
+server/                WebSocket server; saves players to server/data/
+docs/GOOGLE_PLAY.md    how to ship it
+render.yaml            free server hosting on Render
+.github/workflows/     builds the Android app
 ```
-
-## Game rules so far
-
-- Landscape only. Joystick to walk, one action button (Chop / Harvest / Shop).
-- One starting tree per land (8 wood). After that you buy wood or saplings.
-- The shop sits on an island in the river. 6 random items, restocked at midnight.
-- Build: farm, fence, house, barn, stone wall, tree (from a sapling), bridge.
-- Days and nights pass on their own. Rain is rare and random; it makes crops and
-  trees grow faster. Storms are rarer.
-- Online: every player gets an ID (like RF-KAYA7). Search IDs, add friends, see
-  who's online, invite them.
-- Play → Solo / Duo / Trio / Squad → mode (1v1, 1v1v1v1, 2v2, 2v2v2, 3v3, 3v3v3,
-  4v4, 4v4v4v4) → Random online lobby or Create a lobby.
-- Lobbies: host has a crown and starts the match. In random lobbies, if the host
-  waits 1 minute a 2-minute countdown starts and the match starts by itself.
-  Empty spots get bots.
-- Custom lobbies: the host sets name, mode, who can join, match length, day
-  length, starting coins, wood per tree, shop size, rain, storms, disasters,
-  bridge, hunger, and bots.
-- No server running? The Online button still works in demo mode with pretend
-  players.
-
-## Next up
-
-- [ ] Real-time match sync (see teammates and enemies move and build)
-- [ ] More than two lands for 3- and 4-team modes
-- [ ] Server runs the match (time, weather, shop, everyone's land)
-- [ ] Sword fighting, dying and the respawn pads
-- [ ] Trading between teammates
-- [ ] Disasters
-- [ ] Android app for Google Play (Capacitor), landscape locked
-- [ ] Offline mini-game

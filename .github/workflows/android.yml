@@ -1,0 +1,58 @@
+# Builds the Android app on every push to main.
+#  - Always: a test APK you can send to friends (Actions -> run -> Artifacts).
+#  - When the signing secrets are set: a signed .aab to upload to Google Play.
+#
+# Repository settings -> Secrets and variables -> Actions:
+#   Variables: SERVER_URL          e.g. wss://sides-of-the-river-server.onrender.com
+#   Secrets:   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
+#              ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+name: Android build
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - run: npm ci
+      - run: npm test
+      - name: Build the game
+        run: npm run build --workspace client
+        env:
+          VITE_SERVER_URL: ${{ vars.SERVER_URL }}
+      - name: Copy the game into the Android app
+        run: npx cap sync android
+        working-directory: client
+      - name: Test APK (for friends, no Play Store needed)
+        run: ./gradlew assembleDebug
+        working-directory: client/android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: the-sides-of-the-river-test-apk
+          path: client/android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Signed bundle for Google Play
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        working-directory: client/android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+          ./gradlew bundleRelease \
+            -Pandroid.injected.signing.store.file=$PWD/release.keystore \
+            -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
+      - uses: actions/upload-artifact@v4
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        with:
+          name: the-sides-of-the-river-play-store-aab
+          path: client/android/app/build/outputs/bundle/release/app-release.aab

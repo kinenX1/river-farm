@@ -4,25 +4,32 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#0f1830">
-<title>River Farm</title>
+<title>The Sides of the River</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800&display=swap">
 </head>
 <body class="in-menu">
+<div id="intro" aria-hidden="true">
+  <svg viewBox="0 0 600 120" class="intro-river"><path d="M0 60 C 100 20, 200 100, 300 60 S 500 20, 600 60" /></svg>
+  <h1><span>The Sides</span><span>of the River</span></h1>
+</div>
 
-<canvas id="world" aria-label="River Farm game world"></canvas>
+<canvas id="world" aria-label="The Sides of the River game world"></canvas>
 
 <div class="hud top-left">
   <div class="panel stats">
     <div class="row"><span id="day">Day 1</span><span id="time">06:00</span><small id="phase">Sunrise</small></div>
     <div class="row coins"><span id="coins">15</span><small>coins</small></div>
+    <div class="row"><small>Health</small></div>
+    <div class="bar hp"><i id="hp"></i></div>
     <div class="row"><small>Hunger</small></div>
     <div class="bar"><i id="hunger"></i></div>
   </div>
 </div>
-<div class="panel hud" id="help"><b>Your land: the left side</b><span id="helpText">Walk to your tree and tap Chop to get wood.</span></div>
+<div class="panel hud" id="help"><b id="helpTitle">Your land</b><span id="helpText">Walk to your tree and tap Chop to get wood.</span></div>
 
 <div class="hud top-right">
+  <button id="leaveBtn" class="red x">Leave</button>
   <button id="buildBtn" class="wood">Build</button>
 </div>
 
@@ -38,7 +45,7 @@
 
 <div class="panel sheet" id="buildSheet" hidden>
   <h2>Build <button class="x red" data-close>Close</button></h2>
-  <p>You can only build on your own land. The bridge goes across the river.</p>
+  <div class="tabs" id="buildTabs" role="tablist"></div>
   <div class="grid" id="buildGrid"></div>
 </div>
 
@@ -52,15 +59,14 @@
 </div>
 
 <div class="hud" id="toast"></div>
-<div class="tag" id="tagMe">You · Mr. Zino</div>
-<div class="tag enemy" id="tagCopper">Mr. Copper</div>
-<div class="tag" id="tagShop">Shop</div>
+<div id="tags"></div>
+<div class="hud" id="deathScreen" hidden><div><b>You fainted!</b><span id="respawnIn">Back in 3…</span></div></div>
 
 <div id="menu">
   <div class="menu-inner">
     <div class="logo">
-      <div class="logo-sign">River Farm</div>
-      <p class="tagline">Build your life. Beat the land across the river.</p>
+      <div class="logo-sign"><span>The Sides</span><span>of the River</span></div>
+      <p class="tagline">Build your life on your side. Beat the other side.</p>
     </div>
     <div class="pick">
       <button class="farmer-card" id="myFarmer" aria-checked="true">
