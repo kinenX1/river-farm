@@ -1,0 +1,11 @@
+{
+  "name": "river-farm",
+  "private": true,
+  "workspaces": ["client", "server"],
+  "scripts": {
+    "dev": "npm run dev --workspace client",
+    "server": "npm run dev --workspace server",
+    "build": "npm run build --workspace client",
+    "test": "npm test --workspace server"
+  }
+}

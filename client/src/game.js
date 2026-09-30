@@ -1,0 +1,662 @@
+import * as THREE from 'three';
+import { ITEMS, FOOD, START_INVENTORY, START_COINS } from './data/items.js';
+
+// The whole offline prototype lives here for now. It gets split into
+// world / farmers / shop / building modules as the online version lands.
+export function startGame() {
+const inv = { ...START_INVENTORY };
+let coins = START_COINS, hunger = 100;
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('world'), antialias: true }); }
+catch (e) { document.getElementById('fail').hidden = false; throw e; }
+const canvas = renderer.domElement;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x9fd8ff, 70, 150);
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 400);
+const $ = id => document.getElementById(id);
+
+// ================= HELPERS =================
+const mat = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, flatShading: true, roughness: 0.9 }, o));
+function box(w, h, d, c, x = 0, y = 0, z = 0, parent = scene) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), typeof c === 'number' ? mat(c) : c);
+  m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
+}
+function ball(r, c, x, y, z, parent) {
+  const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), mat(c));
+  m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m;
+}
+let toastTimer;
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(toastTimer); toastTimer = setTimeout(() => t.style.opacity = 0, 2200); }
+
+// ================= LIGHT / SEA =================
+const hemi = new THREE.HemisphereLight(0xdff1ff, 0x6b8a3a, 0.7); scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 1);
+sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0008; sun.shadow.radius = 4;
+Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 180 });
+scene.add(sun); scene.add(sun.target);
+const moonLight = new THREE.DirectionalLight(0x8fa8ff, 0); moonLight.position.set(-20, 40, -10); scene.add(moonLight);
+
+const seaGeo = new THREE.PlaneGeometry(320, 320, 50, 50);
+const sea = new THREE.Mesh(seaGeo, mat(0x2aa3dc, { roughness: 0.25, metalness: 0.05 }));
+sea.rotation.x = -Math.PI / 2; sea.position.y = -0.7; sea.receiveShadow = true; scene.add(sea);
+const seaBase = seaGeo.attributes.position.array.slice();
+
+// ================= MAP =================
+const foams = [];
+// Two lands split by a river. You (team Zino) own the left one, team Copper the right one.
+const LAND_W = 26, LAND_D = 34, RIVER = 8, HALF_D = LAND_D / 2;
+const leftX = -(RIVER / 2 + LAND_W / 2), rightX = RIVER / 2 + LAND_W / 2;
+const cA = new THREE.Color(0x6fcf4a), cB = new THREE.Color(0x4fa83a), cC = new THREE.Color(0x9adf5a), tmpC = new THREE.Color();
+function land(cx) {
+  const g = new THREE.PlaneGeometry(LAND_W, LAND_D, 52, 68);
+  g.rotateX(-Math.PI / 2);
+  const pos = g.attributes.position, cols = [];
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i) + cx, z = pos.getZ(i);
+    const n = Math.sin(x * 0.35) * Math.cos(z * 0.3) + Math.sin(x * 1.3 + z * 0.9) * 0.4 + (Math.random() - 0.5) * 0.35;
+    const edge = Math.abs(pos.getX(i)) > LAND_W / 2 - 0.1 || Math.abs(z) > LAND_D / 2 - 0.1;
+    pos.setY(i, edge ? 0 : 0.06 * n);
+    tmpC.copy(cA).lerp(n > 0 ? cC : cB, Math.min(1, Math.abs(n) * 0.6));
+    cols.push(tmpC.r, tmpC.g, tmpC.b);
+  }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+  g.computeVertexNormals();
+  const top = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.95 }));
+  top.position.set(cx, 0.42, 0); top.receiveShadow = true; scene.add(top);
+  box(LAND_W, 0.6, LAND_D, 0x5a9e36, cx, 0.1, 0).castShadow = false;
+  box(LAND_W + 0.02, 1.2, LAND_D + 0.02, 0x8b5e34, cx, -0.8, 0);
+  box(LAND_W - 0.4, 1.2, LAND_D - 0.4, 0x6e4526, cx, -1.9, 0);
+  const foam = new THREE.Mesh(new THREE.BoxGeometry(LAND_W + 1.4, 0.1, LAND_D + 1.4), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 }));
+  foam.position.set(cx, -0.55, 0); scene.add(foam); foams.push(foam);
+  // decoration: grass tufts, flowers, rocks, bushes near the edges
+  const tuftGeo = new THREE.ConeGeometry(0.12, 0.5, 3);
+  const tuftMat = mat(0x5fb83e);
+  for (let i = 0; i < 160; i++) {
+    const t = new THREE.Mesh(tuftGeo, tuftMat);
+    t.position.set(cx + (Math.random() - 0.5) * (LAND_W - 1), 0.62, (Math.random() - 0.5) * (LAND_D - 1));
+    t.rotation.z = (Math.random() - 0.5) * 0.4; scene.add(t);
+  }
+  const petals = [0xffffff, 0xffd84a, 0xff7aa8, 0xb48cff];
+  for (let i = 0; i < 70; i++) {
+    const f = new THREE.Mesh(new THREE.IcosahedronGeometry(0.13, 0), mat(petals[i % 4], { emissive: petals[i % 4], emissiveIntensity: 0.15 }));
+    f.position.set(cx + (Math.random() - 0.5) * (LAND_W - 1), 0.62, (Math.random() - 0.5) * (LAND_D - 1)); scene.add(f);
+  }
+  for (let i = 0; i < 14; i++) {
+    const side = Math.random() < 0.5 ? -1 : 1, alongX = Math.random() < 0.5;
+    const x = cx + (alongX ? (Math.random() - 0.5) * (LAND_W - 2) : side * (LAND_W / 2 - 0.9));
+    const z = alongX ? side * (LAND_D / 2 - 0.9) : (Math.random() - 0.5) * (LAND_D - 2);
+    if (i % 2) { const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.35 + Math.random() * 0.35, 0), mat(0x9aa0a6)); r.position.set(x, 0.6, z); r.rotation.set(Math.random(), Math.random(), 0); r.castShadow = true; scene.add(r); }
+    else { const bsh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.6 + Math.random() * 0.3, 1), mat(0x3f9b3a)); bsh.position.set(x, 0.8, z); bsh.scale.y = 0.75; bsh.castShadow = true; scene.add(bsh); }
+  }
+}
+land(leftX); land(rightX);
+const river = new THREE.Mesh(new THREE.BoxGeometry(RIVER, 0.4, LAND_D + 20), mat(0x45bdf0, { roughness: 0.2, metalness: 0.05 }));
+river.position.set(0, -0.45, 0); scene.add(river);
+
+// Shop islet in the middle of the river, with a small dock to each land
+const SHOP_R = 3.25;
+box(SHOP_R * 2, 1, SHOP_R * 2, 0xd8c27a, 0, 0, 0);
+const shop = new THREE.Group(); shop.position.set(0, 0.5, -0.6); scene.add(shop);
+box(4, 2.6, 2.4, 0xf5e6c4, 0, 1.3, 0, shop);
+box(4.6, 0.3, 3, 0x5e3b1a, 0, 2.75, 0, shop);
+for (let i = 0; i < 6; i++) box(0.76, 0.4, 1.2, i % 2 ? 0xffffff : 0xd9453b, -1.9 + i * 0.76, 2.7, 1.8, shop);
+box(3.2, 0.9, 0.7, 0x8a5a2b, 0, 0.45, 1.6, shop);
+box(0.45, 0.45, 0.45, 0xe9b949, -1, 1.12, 1.6, shop); box(0.45, 0.45, 0.45, 0x9a9a9a, 0, 1.12, 1.6, shop); box(0.45, 0.45, 0.45, 0x6fb24a, 1, 1.12, 1.6, shop);
+box(1.2, 0.2, 1.8, 0xa87a4a, -3.7, 0.35, 1.6);
+box(1.2, 0.2, 1.8, 0xa87a4a, 3.7, 0.35, 1.6);
+const SHOP_POS = new THREE.Vector3(0, 0, 1.6);
+
+// ================= WORLD OBJECTS =================
+const solids = [];   // {x,z,hw,hd} rectangles you can't walk through
+const trees = [];    // {g, x, z, wood, stump}
+const farms = [];    // {x,z,crops[],growth}
+const structs = [];  // placed things (for overlap checks) {x,z,hw,hd}
+let bridge = null;   // {z}
+
+function addSolid(x, z, hw, hd) { const s = { x, z, hw, hd }; solids.push(s); return s; }
+
+function makeTree(x, z, s = 1, woodLeft = 8) {
+  const g = new THREE.Group(); g.position.set(x, 0.4, z); g.scale.setScalar(s); scene.add(g);
+  const trunk = box(0.7, 3, 0.7, 0x7a4a22, 0, 1.5, 0, g);
+  const top = new THREE.Group(); g.add(top);
+  ball(1.9, 0x3f9b3a, 0, 3.8, 0, top); ball(1.3, 0x4fb546, 0.9, 4.6, 0.3, top); ball(1.2, 0x37872f, -0.8, 4.4, -0.5, top);
+  const t = { g, top, trunk, x, z, wood: woodLeft, grow: s < 1 ? s : 1, solid: addSolid(x, z, 0.6, 0.6), shake: 0 };
+  trees.push(t); structs.push({ x, z, hw: 1, hd: 1 });
+  return t;
+}
+function makeFarm(x, z, rot, owner = 'me') {
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rot; scene.add(g);
+  box(6, 0.3, 6, 0x6b4226, 0, 0.45, 0, g);
+  const crops = [];
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
+    const m = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.9, 5), mat(0x9bd13c));
+    m.position.set(-2.1 + c * 1.4, 0.9, -2.1 + r * 1.4); m.castShadow = true; m.scale.setScalar(0.3); g.add(m); crops.push(m);
+  }
+  const f = { x, z, crops, growth: 0, owner };
+  farms.push(f); return f;
+}
+function makeHouse(x, z, rot) {
+  const g = new THREE.Group(); g.position.set(x, 0.4, z); g.rotation.y = rot; scene.add(g);
+  box(4.5, 3, 4, 0xe8c99a, 0, 1.5, 0, g);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(3.6, 2.4, 4), mat(0x9c3d2a));
+  roof.rotation.y = Math.PI / 4; roof.position.set(0, 4.2, 0); roof.castShadow = true; g.add(roof);
+  box(1.1, 1.8, 0.15, 0x6b4423, 0, 0.9, 2.05, g);
+  box(0.9, 0.9, 0.15, 0x9fd8ff, -1.4, 1.8, 2.05, g);
+  box(0.6, 1.4, 0.6, 0x8b8b8b, 1.3, 4.3, -0.8, g);
+}
+function makeBarn(x, z, rot) {
+  const g = new THREE.Group(); g.position.set(x, 0.4, z); g.rotation.y = rot; scene.add(g);
+  box(6, 4, 5, 0xc0392b, 0, 2, 0, g);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(4.3, 2.4, 4), mat(0x5b3a1e));
+  roof.rotation.y = Math.PI / 4; roof.scale.set(1, 1, 0.85); roof.position.set(0, 5.2, 0); roof.castShadow = true; g.add(roof);
+  box(2.2, 2.8, 0.2, 0xf1e0c5, 0, 1.4, 2.55, g);
+  box(2.2, 0.2, 0.22, 0x7a2419, 0, 1.4, 2.6, g);
+}
+function makeFence(x, z, rot) {
+  const g = new THREE.Group(); g.position.set(x, 0.4, z); g.rotation.y = rot; scene.add(g);
+  for (let i = -1; i <= 1; i++) box(0.22, 1.1, 0.22, 0xa87a4a, i * 1.4, 0.55, 0, g);
+  box(3, 0.15, 0.12, 0xa87a4a, 0, 0.8, 0, g); box(3, 0.15, 0.12, 0xa87a4a, 0, 0.4, 0, g);
+}
+function makeWall(x, z, rot) {
+  const g = new THREE.Group(); g.position.set(x, 0.4, z); g.rotation.y = rot; scene.add(g);
+  box(3, 1.6, 0.8, 0x9a9a9a, 0, 0.8, 0, g);
+  box(1.4, 0.8, 0.82, 0x8a8a8a, -0.7, 0.4, 0, g);
+}
+function makeBridge(z) {
+  const g = new THREE.Group(); g.position.set(0, 0.35, z); scene.add(g);
+  for (let i = 0; i < 12; i++) box(0.72, 0.25, 3, 0xb5824a, -RIVER / 2 - 0.4 + i * 0.8, 0, 0, g);
+  box(RIVER + 1.5, 0.2, 0.2, 0x7a4a22, 0, 0.9, 1.4, g); box(RIVER + 1.5, 0.2, 0.2, 0x7a4a22, 0, 0.9, -1.4, g);
+  for (const px of [-4.5, 0, 4.5]) for (const pz of [-1.4, 1.4]) box(0.2, 1, 0.2, 0x7a4a22, px, 0.45, pz, g);
+  bridge = { z };
+}
+
+// ================= BUILD CATALOG =================
+const BUILDS = {
+  farm:   { name: 'Farm',   cost: { wood: 3, seeds: 1 }, w: 6,   d: 6,   solid: false, make: makeFarm,  note: 'Grows wheat. Rain makes it grow faster.' },
+  fence:  { name: 'Fence',  cost: { wood: 1 },           w: 3,   d: 0.4, solid: true,  make: makeFence },
+  house:  { name: 'House',  cost: { wood: 10, door: 1 }, w: 4.6, d: 4.2, solid: true,  make: makeHouse, note: 'Where you sleep.' },
+  barn:   { name: 'Barn',   cost: { wood: 14, iron: 2 }, w: 6.2, d: 5.2, solid: true,  make: makeBarn },
+  tree:   { name: 'Tree',   cost: { sapling: 1 },        w: 2,   d: 2,   solid: true,  make: (x, z) => makeTree(x, z, 0.3, 6), note: 'Plant a sapling. Chop it when it’s grown.' },
+  wall:   { name: 'Stone wall', cost: { stone: 2 },      w: 3,   d: 0.8, solid: true,  make: makeWall },
+  bridge: { name: 'Bridge', cost: { wood: 12 },          w: RIVER + 2, d: 3, solid: false, make: null, note: 'Connects the two lands. Stand at the river edge.' },
+};
+const canPay = cost => Object.entries(cost).every(([k, n]) => inv[k] >= n);
+const pay = cost => Object.entries(cost).forEach(([k, n]) => inv[k] -= n);
+const costHtml = cost => Object.entries(cost).map(([k, n]) => `<span class="${inv[k] >= n ? '' : 'miss'}">${n} ${ITEMS[k].name}</span>`).join(' · ');
+
+// ================= FARMERS =================
+function farmer(o) {
+  const g = new THREE.Group(); scene.add(g);
+  const body = new THREE.Group(); g.add(body);
+  const belly = ball(1, o.shirt, 0, 1.25, 0, body); belly.scale.set(1.15, 1.05, 1.05);
+  const overalls = ball(1.02, o.pants, 0, 1.0, 0, body); overalls.scale.set(1.17, 0.8, 1.08);
+  box(0.25, 1, 0.12, o.pants, -0.45, 1.7, 0.95, body); box(0.25, 1, 0.12, o.pants, 0.45, 1.7, 0.95, body);
+  ball(0.55, 0xf2c29b, 0, 2.55, 0, body);
+  ball(0.12, 0x2b1d0e, -0.2, 2.62, 0.5, body); ball(0.12, 0x2b1d0e, 0.2, 2.62, 0.5, body);
+  ball(0.14, 0xe8a07a, 0, 2.48, 0.56, body);
+  if (o.beard) { const b = ball(0.42, o.beard, 0, 2.25, 0.32, body); b.scale.set(1.1, 0.8, 0.7); }
+  if (o.mustache) box(0.55, 0.12, 0.12, o.mustache, 0, 2.38, 0.55, body);
+  if (o.hat === 'straw') {
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.05, 0.08, 16), mat(0xe8cf7a)); brim.position.y = 2.95; brim.castShadow = true; body.add(brim);
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, 0.45, 12), mat(0xdcc06a)); top.position.y = 3.2; body.add(top);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.56, 0.1, 12), mat(0x7a2419)); band.position.y = 3.02; body.add(band);
+  } else {
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.58, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(o.hatColor)); cap.position.y = 2.72; body.add(cap);
+    box(0.7, 0.07, 0.5, o.hatColor, 0, 2.75, 0.6, body);
+  }
+  const armL = new THREE.Group(); armL.position.set(-1.2, 1.9, 0); body.add(armL);
+  const armR = new THREE.Group(); armR.position.set(1.2, 1.9, 0); body.add(armR);
+  const al = ball(0.3, o.shirt, 0, -0.4, 0, armL); al.scale.set(0.8, 1.4, 0.8);
+  const ar = ball(0.3, o.shirt, 0, -0.4, 0, armR); ar.scale.set(0.8, 1.4, 0.8);
+  const axe = new THREE.Group(); armR.add(axe);
+  box(0.12, 1.4, 0.12, 0x7a4a22, 0, -0.6, 0.35, axe); box(0.1, 0.4, 0.5, 0xb0b0b0, 0, -0.05, 0.55, axe);
+  const sword = new THREE.Group(); armR.add(sword); sword.visible = false;
+  box(0.1, 1.5, 0.22, 0xd9e2ec, 0, -0.2, 0.45, sword); box(0.5, 0.1, 0.12, 0x7a4a22, 0, -0.9, 0.45, sword);
+  const legL = box(0.45, 0.45, 0.5, 0x4a2e17, -0.45, 0.22, 0, g);
+  const legR = box(0.45, 0.45, 0.5, 0x4a2e17, 0.45, 0.22, 0, g);
+  g.scale.setScalar(1.05);
+  return { g, body, legL, legR, armL, armR, axe, sword, walkT: 0, swing: 0, x: 0, z: 0, face: 0 };
+}
+function animate(f, moving, dt) {
+  if (moving && !reduceMotion) f.walkT += dt * 7;
+  const w = f.walkT, a = moving ? 1 : 0;
+  f.body.rotation.z = Math.sin(w) * 0.17 * a;              // fat waddle
+  f.body.position.y = Math.abs(Math.sin(w)) * 0.2 * a;
+  f.legL.position.z = Math.sin(w) * 0.32 * a; f.legR.position.z = -Math.sin(w) * 0.32 * a;
+  f.armL.rotation.x = Math.sin(w) * 0.6 * a;
+  if (f.swing > 0) { f.swing -= dt * 3; f.armR.rotation.x = -Math.sin(Math.max(0, f.swing) * Math.PI) * 2.2; }
+  else f.armR.rotation.x = -Math.sin(w) * 0.6 * a;
+  f.g.position.set(f.x, 0.4, f.z); f.g.rotation.y = f.face;
+  if (f.blob) f.blob.position.set(f.x, 0.55, f.z);
+}
+
+const me = farmer({ shirt: 0xd9cfae, pants: 0x6b5236, beard: 0xf2f2f2, hat: 'straw' });
+me.x = leftX + 4; me.z = 6;
+const copper = farmer({ shirt: 0xc8632b, pants: 0x3a5a8c, mustache: 0x9c4a1a, hat: 'cap', hatColor: 0x2e7d4f });
+copper.x = rightX - 2; copper.z = 6;
+
+// Respawn pads
+function respawnPad(x, z, color) {
+  const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 0.2, 16), mat(color, { emissive: color, emissiveIntensity: 0.35 }));
+  pad.position.set(x, 0.5, z); scene.add(pad);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.1, 6, 24), mat(0xffffff, { emissive: color, emissiveIntensity: 0.8 }));
+  ring.rotation.x = Math.PI / 2; ring.position.set(x, 0.75, z); scene.add(ring);
+  structs.push({ x, z, hw: 1.8, hd: 1.8 });
+  return ring;
+}
+const rings = [respawnPad(leftX - 9, 13, 0x3d7fc4), respawnPad(rightX + 9, 13, 0xe0762b)];
+
+// The one starting tree on each land
+const myTree = makeTree(leftX - 4, -8, 1.1);
+const copperTree = makeTree(rightX + 4, -8, 1.1);
+
+// Clouds drifting over the map
+const clouds = [];
+const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 1, transparent: true, opacity: 0.92 });
+for (let i = 0; i < 7; i++) {
+  const c = new THREE.Group();
+  for (let j = 0; j < 4; j++) { const p = new THREE.Mesh(new THREE.IcosahedronGeometry(1.6 + Math.random() * 1.4, 1), cloudMat); p.position.set(j * 1.9 - 3, Math.random() * 0.8, (Math.random() - 0.5) * 1.5); p.scale.y = 0.65; c.add(p); }
+  c.position.set((Math.random() - 0.5) * 140, 8 + Math.random() * 5, -32 - Math.random() * 30);
+  c.userData.speed = 0.6 + Math.random() * 0.8;
+  scene.add(c); clouds.push(c);
+}
+// Soft blob shadows under the farmers so they sit on the grass
+function blob(f) {
+  const m = new THREE.Mesh(new THREE.CircleGeometry(1.1, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2; scene.add(m); f.blob = m;
+}
+blob(me); blob(copper);
+
+// ================= WALKING RULES =================
+function onLand(x, z, side) {
+  const inZ = Math.abs(z) < HALF_D - 0.6;
+  if (side === 'left') return inZ && x > leftX - LAND_W / 2 + 0.6 && x < -RIVER / 2 - 0.4;
+  return inZ && x < rightX + LAND_W / 2 - 0.6 && x > RIVER / 2 + 0.4;
+}
+function walkable(x, z) {
+  if (onLand(x, z, 'left') || onLand(x, z, 'right')) return true;
+  if (Math.abs(x) < SHOP_R - 0.3 && Math.abs(z) < SHOP_R - 0.3) return true;
+  if (Math.abs(x) < RIVER / 2 + 0.6 && Math.abs(z - 1.6) < 0.8) return true;  // docks
+  if (bridge && Math.abs(x) < RIVER / 2 + 1 && Math.abs(z - bridge.z) < 1.2) return true;
+  return false;
+}
+function hitsSolid(x, z, r = 0.7) {
+  if (Math.abs(x - shop.position.x) < 2 + r && Math.abs(z - shop.position.z) < 1.2 + r) return true;
+  return solids.some(s => Math.abs(x - s.x) < s.hw + r && Math.abs(z - s.z) < s.hd + r);
+}
+function tryMove(f, dx, dz) {
+  const nx = f.x + dx, nz = f.z + dz;
+  if (walkable(nx, nz) && !hitsSolid(nx, nz)) { f.x = nx; f.z = nz; return true; }
+  if (walkable(nx, f.z) && !hitsSolid(nx, f.z)) { f.x = nx; return true; }
+  if (walkable(f.x, nz) && !hitsSolid(f.x, nz)) { f.z = nz; return true; }
+  return false;
+}
+
+// ================= INPUT =================
+const keys = {};
+addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if (e.key === 'e' || e.key === ' ') { e.preventDefault(); $('action').click(); }
+  if (e.key === 'b') $('buildBtn').click();
+});
+addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+const stick = { x: 0, y: 0, id: null };
+const stickEl = $('stick'), knob = $('knob');
+function stickMove(e) {
+  const r = stickEl.getBoundingClientRect();
+  let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+  const len = Math.hypot(dx, dy), max = 44;
+  if (len > max) { dx *= max / len; dy *= max / len; }
+  knob.style.transform = `translate(${dx}px, ${dy}px)`;
+  stick.x = dx / max; stick.y = dy / max;
+}
+stickEl.addEventListener('pointerdown', e => { stick.id = e.pointerId; stickEl.setPointerCapture(e.pointerId); stickMove(e); });
+stickEl.addEventListener('pointermove', e => { if (e.pointerId === stick.id) stickMove(e); });
+const stickEnd = e => { if (e.pointerId !== stick.id) return; stick.id = null; stick.x = stick.y = 0; knob.style.transform = ''; };
+stickEl.addEventListener('pointerup', stickEnd); stickEl.addEventListener('pointercancel', stickEnd);
+
+// drag on the world to turn the camera
+let yaw = 0, pitch = 1.0, camDist = 60, drag = null;
+canvas.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, yaw, pitch }; canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointermove', e => {
+  if (!drag) return;
+  yaw = drag.yaw - (e.clientX - drag.x) * 0.006;
+  pitch = Math.min(1.35, Math.max(0.5, drag.pitch + (e.clientY - drag.y) * 0.004));
+});
+canvas.addEventListener('pointerup', () => drag = null);
+canvas.addEventListener('wheel', e => { camDist = Math.min(80, Math.max(20, camDist + e.deltaY * 0.03)); }, { passive: true });
+
+// ================= INVENTORY UI =================
+function renderInv() {
+  $('coins').textContent = coins;
+  $('hotbar').innerHTML = Object.keys(ITEMS).map(k => {
+    const n = inv[k];
+    return `<div class="slot ${n ? '' : 'empty'}" data-item="${k}" title="${ITEMS[k].name}${FOOD[k] ? ' (tap to eat)' : ''}">
+      <span class="sw" style="background:${ITEMS[k].color}"></span><span class="n">${n}</span><span class="l">${ITEMS[k].name}</span></div>`;
+  }).join('');
+}
+$('hotbar').addEventListener('click', e => {
+  const s = e.target.closest('.slot'); if (!s) return;
+  const k = s.dataset.item;
+  if (FOOD[k] && inv[k] > 0) { inv[k]--; hunger = Math.min(100, hunger + FOOD[k]); toast(`Ate ${ITEMS[k].name.toLowerCase()}. Yum!`); renderInv(); }
+  else if (k === 'sword' && inv.sword > 0) { me.sword.visible = !me.sword.visible; me.axe.visible = !me.sword.visible; toast(me.sword.visible ? 'Sword out' : 'Axe out'); }
+  else if (FOOD[k]) toast(`No ${ITEMS[k].name.toLowerCase()} left. Buy some at the shop.`);
+});
+
+// ================= SHOP =================
+const STOCK_POOL = ['wood', 'stone', 'iron', 'steel', 'door', 'bread', 'apple', 'seeds', 'sapling', 'sword'];
+let todayStock = [];
+function rollShop() {
+  todayStock = STOCK_POOL.slice().sort(() => Math.random() - 0.5).slice(0, 6).map(k => ({ k, left: 2 + Math.floor(Math.random() * 6) }));
+}
+function renderShop() {
+  $('buyGrid').innerHTML = todayStock.map((s, i) => `<div class="card"><b>${ITEMS[s.k].name}</b>
+    <div class="cost">${ITEMS[s.k].buy} coins · ${s.left} left</div>
+    <button data-buy="${i}" ${coins >= ITEMS[s.k].buy && s.left ? '' : 'disabled'}>Buy</button></div>`).join('');
+  const sellable = Object.keys(ITEMS).filter(k => ITEMS[k].sell);
+  $('sellGrid').innerHTML = sellable.map(k => `<div class="card"><b>${ITEMS[k].name}</b>
+    <div class="cost">${ITEMS[k].sell} coins each · you have ${inv[k]}</div>
+    <button class="wood" data-sell="${k}" ${inv[k] ? '' : 'disabled'}>Sell 1</button></div>`).join('');
+}
+$('buyGrid').addEventListener('click', e => {
+  const b = e.target.closest('[data-buy]'); if (!b) return;
+  const s = todayStock[b.dataset.buy], price = ITEMS[s.k].buy;
+  if (coins < price || !s.left) return;
+  coins -= price; s.left--; inv[s.k]++;
+  toast(`Bought ${ITEMS[s.k].name}`); renderInv(); renderShop();
+});
+$('sellGrid').addEventListener('click', e => {
+  const b = e.target.closest('[data-sell]'); if (!b) return;
+  const k = b.dataset.sell; if (!inv[k]) return;
+  inv[k]--; coins += ITEMS[k].sell; renderInv(); renderShop();
+});
+function openSheet(id) { closeSheets(); $(id).hidden = false; }
+function closeSheets() { $('shopSheet').hidden = true; $('buildSheet').hidden = true; }
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = closeSheets);
+
+// ================= BUILDING =================
+let placing = null; // {key, rot, ghost}
+function renderBuild() {
+  $('buildGrid').innerHTML = Object.entries(BUILDS).map(([k, b]) => {
+    const blocked = k === 'bridge' && bridge;
+    return `<div class="card"><b>${b.name}</b><div class="cost">${costHtml(b.cost)}</div>
+      ${b.note ? `<div class="cost" style="font-weight:600">${b.note}</div>` : ''}
+      <button data-build="${k}" ${canPay(b.cost) && !blocked ? '' : 'disabled'}>${blocked ? 'Built' : 'Place'}</button></div>`;
+  }).join('');
+}
+$('buildBtn').onclick = () => { if (placing) return; renderBuild(); openSheet('buildSheet'); };
+$('buildGrid').addEventListener('click', e => {
+  const b = e.target.closest('[data-build]'); if (!b) return;
+  const key = b.dataset.build, def = BUILDS[key];
+  closeSheets();
+  const ghost = new THREE.Mesh(new THREE.BoxGeometry(def.w, key === 'bridge' ? 0.4 : 1.5, def.d),
+    new THREE.MeshBasicMaterial({ color: 0x5cff5c, transparent: true, opacity: 0.35, depthWrite: false }));
+  scene.add(ghost);
+  placing = { key, rot: 0, ghost, ok: false };
+  $('placebar').hidden = false; $('buildBtn').disabled = true;
+  toast(key === 'bridge' ? 'Walk to the river edge of your land' : 'Walk to move it, then tap Place');
+});
+function ghostSpot() {
+  const def = BUILDS[placing.key];
+  if (placing.key === 'bridge') {
+    const z = Math.round(me.z);
+    const ok = me.x > -RIVER / 2 - 4 && onLand(me.x, me.z, 'left') && Math.abs(z) < HALF_D - 2 && Math.abs(z - 1.6) > 3;
+    return { x: 0, z, hw: def.w / 2, hd: def.d / 2, ok };
+  }
+  const dist = Math.max(def.w, def.d) / 2 + 1.6;
+  const x = Math.round((me.x + Math.sin(me.face) * dist) * 2) / 2, z = Math.round((me.z + Math.cos(me.face) * dist) * 2) / 2;
+  const turned = placing.rot % 2 === 1;
+  const hw = (turned ? def.d : def.w) / 2, hd = (turned ? def.w : def.d) / 2;
+  const inside = onLand(x - hw, z - hd, 'left') && onLand(x + hw, z + hd, 'left');
+  const free = !structs.some(s => Math.abs(x - s.x) < s.hw + hw && Math.abs(z - s.z) < s.hd + hd);
+  const notOnMe = Math.abs(me.x - x) > hw + 0.6 || Math.abs(me.z - z) > hd + 0.6;
+  return { x, z, hw, hd, ok: inside && free && notOnMe };
+}
+function updateGhost() {
+  const s = ghostSpot();
+  placing.spot = s;
+  placing.ghost.position.set(s.x, placing.key === 'bridge' ? 0.4 : 1.2, s.z);
+  placing.ghost.rotation.y = placing.key === 'bridge' ? 0 : placing.rot * Math.PI / 2;
+  placing.ghost.material.color.set(s.ok ? 0x5cff5c : 0xff4a3a);
+  $('placeBtn').disabled = !s.ok;
+}
+function endPlacing() {
+  scene.remove(placing.ghost); placing = null;
+  $('placebar').hidden = true; $('buildBtn').disabled = false;
+}
+$('rotBtn').onclick = () => { if (placing) placing.rot = (placing.rot + 1) % 4; };
+$('cancelBtn').onclick = () => placing && endPlacing();
+$('placeBtn').onclick = () => {
+  if (!placing || !placing.spot.ok) return;
+  const def = BUILDS[placing.key], s = placing.spot, rot = placing.rot * Math.PI / 2;
+  if (!canPay(def.cost)) { toast('Not enough materials'); endPlacing(); return; }
+  pay(def.cost);
+  if (placing.key === 'bridge') { makeBridge(s.z); toast('Bridge built! The lands are connected.'); }
+  else {
+    def.make(s.x, s.z, rot);
+    if (placing.key !== 'tree') structs.push({ x: s.x, z: s.z, hw: s.hw, hd: s.hd });
+    if (def.solid && placing.key !== 'tree') addSolid(s.x, s.z, s.hw, s.hd);
+    toast(`${def.name} built!`);
+    if (placing.key === 'farm') setHelp('Wait for the wheat to turn gold, then tap Harvest. Rain helps it grow.');
+    if (placing.key === 'house') setHelp('Nice house! Keep building your life.');
+  }
+  renderInv(); endPlacing();
+};
+
+// ================= ACTIONS =================
+let actionFn = null, chopCd = 0;
+const nearest = (list, r) => list.filter(o => Math.hypot(o.x - me.x, o.z - me.z) < r).sort((a, b) => Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z))[0];
+function setHelp(t) { $('helpText').textContent = t; }
+function pickAction() {
+  if (placing) return [null, '…'];
+  if (me.x > -SHOP_R - 1.5 && me.x < SHOP_R + 1.5 && Math.abs(me.z) < SHOP_R + 1) return [() => { renderShop(); openSheet('shopSheet'); }, 'Shop'];
+  const f = nearest(farms.filter(f => f.owner === 'me'), 4.6);
+  if (f && f.growth >= 1) return [() => {
+    f.growth = 0; inv.wheat += 4; toast('+4 Wheat'); renderInv();
+    setHelp('Sell wheat at the shop for coins.');
+  }, 'Harvest'];
+  const t = nearest(trees.filter(t => t.x < 0), 3.2);
+  if (t && t.wood > 0 && t.grow >= 1) return [() => {
+    if (chopCd > 0) return;
+    chopCd = 0.55; me.swing = 1; t.shake = 0.3;
+    me.face = Math.atan2(t.x - me.x, t.z - me.z);
+    t.wood--; inv.wood++; toast(`+1 Wood (${t.wood} left in this tree)`); renderInv();
+    if (t.wood === 0) {
+      t.top.visible = false; t.trunk.scale.y = 0.2; t.trunk.position.y = 0.3;
+      toast('The tree is gone! Sell wood at the shop, or buy a sapling.');
+      setHelp('Cross the dock to the shop in the river. Sell wood, buy what you need.');
+    }
+  }, 'Chop'];
+  if (t && t.grow < 1) return [null, 'Growing'];
+  return [null, '…'];
+}
+
+// ================= COPPER (AI stand-in for the other team) =================
+const bot = { plan: [], wait: 0, stage: 0 };
+const BOT_PLAN = [
+  ['go', rightX + 4, -5.8], ['chop', 4], ['go', rightX - 5, 1.6], ['go', 3, 1.6], ['wait', 3],
+  ['go', rightX - 5, 1.6], ['go', rightX + 1, 6], ['farm', rightX + 1, 9], ['go', rightX + 4, -5.8], ['chop', 4],
+  ['go', rightX - 6, -2], ['wait', 4],
+];
+bot.plan = BOT_PLAN.slice();
+function runBot(dt) {
+  if (bot.wait > 0) { bot.wait -= dt; animate(copper, false, dt); return; }
+  const step = bot.plan[0];
+  if (!step) { bot.plan = BOT_PLAN.slice(3); animate(copper, false, dt); return; }
+  if (step[0] === 'go') {
+    const dx = step[1] - copper.x, dz = step[2] - copper.z, d = Math.hypot(dx, dz);
+    if (d < 0.3) { bot.plan.shift(); animate(copper, false, dt); return; }
+    const sp = Math.min(d, 3 * dt);
+    copper.face = Math.atan2(dx, dz);
+    copper.x += dx / d * sp; copper.z += dz / d * sp;
+    animate(copper, true, dt); return;
+  }
+  if (step[0] === 'chop') {
+    if (copperTree.wood > 0) { copper.face = Math.atan2(copperTree.x - copper.x, copperTree.z - copper.z); copper.swing = 1; copperTree.shake = 0.3; copperTree.wood--; if (!copperTree.wood) { copperTree.top.visible = false; copperTree.trunk.scale.y = 0.2; copperTree.trunk.position.y = 0.3; } }
+    step[1]--; bot.wait = 0.7; if (step[1] <= 0) bot.plan.shift();
+    animate(copper, false, dt); return;
+  }
+  if (step[0] === 'farm') {
+    if (!farms.some(f => f.owner === 'copper')) makeFarm(step[1], step[2], 0, 'copper');
+    bot.plan.shift(); bot.wait = 1;
+  }
+  if (step[0] === 'wait') { bot.wait = step[1]; bot.plan.shift(); }
+  animate(copper, false, dt);
+}
+
+// ================= RAIN =================
+const RAIN_N = 1600;
+const rainGeo = new THREE.BufferGeometry();
+const rainPos = new Float32Array(RAIN_N * 3);
+for (let i = 0; i < RAIN_N; i++) { rainPos[i * 3] = (Math.random() - 0.5) * 70; rainPos[i * 3 + 1] = Math.random() * 30; rainPos[i * 3 + 2] = (Math.random() - 0.5) * 70; }
+rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+const rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0xbfe3ff, size: 0.18, transparent: true, opacity: 0.8 }));
+rain.visible = false; scene.add(rain);
+let raining = false, storm = false, flash = 0;
+// The game decides the weather: each morning a small chance of rain, a smaller chance of a storm.
+let weather = { kind: 'rain', start: 9.5, end: 11 };
+function rollWeather() {
+  const r = Math.random();
+  if (r < 0.22) { const start = 8 + Math.random() * 8; weather = { kind: r < 0.06 ? 'storm' : 'rain', start, end: start + 1.5 + Math.random() * 3 }; }
+  else weather = null;
+}
+
+// ================= SKY / TIME =================
+const SKY = { night: new THREE.Color(0x0f1830), dawn: new THREE.Color(0xf7a26b), day: new THREE.Color(0x8fd3ff), dusk: new THREE.Color(0xe0715a), rain: new THREE.Color(0x6f7f8e), white: new THREE.Color(0xffffff) };
+let clock = 7.5, dayNum = 1;
+const bg = new THREE.Color();
+function skyAt(h) {
+  if (h < 5 || h >= 20.5) return bg.copy(SKY.night);
+  if (h < 7) return bg.copy(SKY.night).lerp(SKY.dawn, Math.min(1, (h - 5) / 1.2)).lerp(SKY.day, Math.max(0, h - 6));
+  if (h < 17.5) return bg.copy(SKY.day);
+  if (h < 19) return bg.copy(SKY.day).lerp(SKY.dusk, (h - 17.5) / 1.5);
+  return bg.copy(SKY.dusk).lerp(SKY.night, (h - 19) / 1.5);
+}
+const phaseName = h => h >= 5 && h < 7.5 ? 'Sunrise' : h >= 7.5 && h < 17.5 ? 'Day' : h >= 17.5 && h < 20 ? 'Sunset' : 'Night';
+
+// ================= LOOP =================
+function resize() {
+  renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight;
+  camera.fov = 40; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+const tags = [[$('tagMe'), me.g, 3.2], [$('tagCopper'), copper.g, 3.2], [$('tagShop'), shop, 4]];
+const v3 = new THREE.Vector3();
+function placeTags() {
+  for (const [el, obj, off] of tags) {
+    obj.getWorldPosition(v3); v3.y += off; v3.project(camera);
+    el.style.left = ((v3.x + 1) / 2 * innerWidth) + 'px';
+    el.style.top = ((1 - v3.y) / 2 * innerHeight) + 'px';
+    el.hidden = v3.z > 1 || Math.abs(v3.x) > 1.1 || Math.abs(v3.y) > 1.1;
+  }
+}
+
+rollShop(); renderInv();
+let last = performance.now(), tm = 0, lastAction = '';
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; tm += dt;
+  chopCd = Math.max(0, chopCd - dt);
+
+  // time: one in-game hour every 3 seconds (a day is 72 seconds here)
+  clock += dt / 3;
+  if (clock >= 24) { clock -= 24; dayNum++; rollShop(); rollWeather(); if (!$('shopSheet').hidden) renderShop(); toast(`Day ${dayNum}. The shop has new stock!`); }
+  const wOn = !!weather && clock >= weather.start && clock < weather.end;
+  if (wOn !== raining) { raining = wOn; storm = wOn && weather.kind === 'storm'; rain.visible = raining; if (wOn) toast(storm ? 'A storm is coming!' : 'It’s raining. Crops grow faster.'); }
+
+  // hunger (walk slower when starving; you can never run)
+  hunger = Math.max(0, hunger - dt * 0.35);
+  $('hunger').style.width = hunger + '%';
+
+  // movement, relative to the camera
+  let ix = stick.x + ((keys.d || keys.arrowright) ? 1 : 0) - ((keys.a || keys.arrowleft) ? 1 : 0);
+  let iy = stick.y + ((keys.s || keys.arrowdown) ? 1 : 0) - ((keys.w || keys.arrowup) ? 1 : 0);
+  const il = Math.hypot(ix, iy); if (il > 1) { ix /= il; iy /= il; }
+  const moving = il > 0.12 && $('shopSheet').hidden && $('buildSheet').hidden;
+  if (moving) {
+    const speed = (hunger > 0 ? 3.4 : 1.8) * dt;
+    const wx = ix * Math.cos(yaw) + iy * Math.sin(yaw), wz = -ix * Math.sin(yaw) + iy * Math.cos(yaw);
+    tryMove(me, wx * speed, wz * speed);
+    me.face = Math.atan2(wx, wz);
+  }
+  animate(me, moving, dt);
+  runBot(dt);
+  if (placing) updateGhost();
+
+  // action button
+  const [fn, label] = pickAction();
+  actionFn = fn;
+  if (label !== lastAction) { $('action').textContent = label; lastAction = label; }
+  $('action').disabled = !fn;
+
+  // trees grow, shake
+  for (const t of trees) {
+    if (t.grow < 1) { t.grow = Math.min(1, t.grow + dt * (raining ? 0.06 : 0.02)); t.g.scale.setScalar(Math.max(0.3, t.grow)); }
+    if (t.shake > 0) { t.shake -= dt; t.top.rotation.z = Math.sin(t.shake * 60) * 0.06; } else t.top.rotation.z = 0;
+  }
+  // farms grow (rain = much faster)
+  for (const f of farms) {
+    f.growth = Math.min(1, f.growth + dt * (raining ? 0.09 : 0.025));
+    const s = 0.3 + f.growth * 0.9;
+    const ripe = f.growth >= 1;
+    f.crops.forEach(c => { c.scale.setScalar(s); c.material.color.setHex(ripe ? 0xe3c04a : 0x9bd13c); });
+  }
+
+  // sun and sky
+  const ang = (clock - 6) / 24 * Math.PI * 2;
+  sun.position.set(me.x + Math.cos(ang) * 60, Math.sin(ang) * 60, me.z + 25);
+  sun.target.position.set(me.x, 0, me.z);
+  const up = Math.max(0, Math.sin(ang));
+  sun.intensity = up * (raining ? 0.45 : 1.1);
+  sun.color.setHSL(0.09, 0.8, 0.55 + up * 0.4);
+  moonLight.intensity = (1 - Math.min(1, up * 4)) * 0.4;
+  hemi.intensity = 0.3 + up * 0.5;
+  skyAt(clock);
+  if (raining) bg.lerp(SKY.rain, storm ? 0.7 : 0.45);
+  if (storm) {
+    if (flash <= 0 && Math.random() < 0.006) flash = 0.25;
+    if (flash > 0) { flash -= dt; bg.lerp(SKY.white, 0.6); hemi.intensity += 1.2; }
+  }
+  scene.background = bg; scene.fog.color.copy(bg);
+
+  // sea
+  const p = seaGeo.attributes.position.array, amp = storm ? 0.9 : 0.25;
+  for (let i = 0; i < p.length; i += 3) p[i + 2] = seaBase[i + 2] + Math.sin(seaBase[i] * 0.15 + tm * (storm ? 2.5 : 1.2)) * amp + Math.cos(seaBase[i + 1] * 0.2 + tm) * amp * 0.6;
+  seaGeo.attributes.position.needsUpdate = true;
+
+  if (raining) {
+    const rp = rainGeo.attributes.position.array, speed = storm ? 50 : 28, drift = storm ? 10 : 2;
+    for (let i = 0; i < RAIN_N; i++) {
+      rp[i * 3 + 1] -= speed * dt; rp[i * 3] += drift * dt;
+      if (rp[i * 3 + 1] < 0) { rp[i * 3 + 1] = 30; rp[i * 3] = me.x + (Math.random() - 0.5) * 70; rp[i * 3 + 2] = me.z + (Math.random() - 0.5) * 70; }
+    }
+    rainGeo.attributes.position.needsUpdate = true;
+  }
+  clouds.forEach(c => { c.position.x += c.userData.speed * dt; if (c.position.x > 80) c.position.x = -80; });
+  foams.forEach(f => f.material.opacity = 0.25 + Math.sin(tm * 1.5) * 0.1);
+  rings.forEach((r, i) => { r.rotation.z += dt * (i ? -1 : 1); r.position.y = 0.75 + Math.sin(tm * 2) * 0.15; });
+
+  // camera follows you
+  // wide view of both lands, drifting a little toward you
+  const fx = me.x * 0.35, fz = me.z * 0.35 + 5;
+  camera.position.set(fx + Math.sin(yaw) * Math.cos(pitch) * camDist, Math.sin(pitch) * camDist, fz + Math.cos(yaw) * Math.cos(pitch) * camDist);
+  camera.lookAt(fx, 0, fz);
+  renderer.render(scene, camera);
+  placeTags();
+
+  const hh = Math.floor(clock), mm = Math.floor((clock - hh) * 60);
+  $('day').textContent = 'Day ' + dayNum;
+  $('time').textContent = String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+  $('phase').textContent = raining ? (storm ? 'Storm' : 'Rain') : phaseName(clock);
+  requestAnimationFrame(frame);
+}
+$('action').onclick = () => actionFn && actionFn();
+requestAnimationFrame(frame);
+}
