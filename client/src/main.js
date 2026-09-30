@@ -1,4 +1,5 @@
 import './style.css';
 import { startGame } from './game.js';
+import { startMenu } from './menu.js';
 
-startGame();
+startMenu(startGame());

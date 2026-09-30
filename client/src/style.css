@@ -86,3 +86,50 @@ button.red { background: var(--bad); border-color: #7a2419; box-shadow: 0 4px 0 
 #help { left: 12px; top: calc(128px + env(safe-area-inset-top, 0px)); max-width: 230px; font-size: 12px; font-weight: 700; pointer-events: none; }
 #help b { font-family: var(--display); font-weight: 400; font-size: 14px; display: block; margin-bottom: 2px; }
 #fail { position: fixed; inset: 0; display: grid; place-items: center; color: var(--paper); font-family: var(--display); font-size: 18px; text-align: center; padding-inline: 24px; }
+
+/* ---------- 3D item icons ---------- */
+.slot .ic { width: 34px; height: 34px; object-fit: contain; filter: drop-shadow(0 2px 2px rgba(0,0,0,.25)); }
+.slot .n { z-index: 1; text-shadow: 0 0 3px var(--paper), 0 0 3px var(--paper); }
+.slot .l { font-size: 9px; }
+.card .ic { width: 56px; height: 56px; object-fit: contain; justify-self: center; filter: drop-shadow(0 3px 3px rgba(0,0,0,.25)); }
+.card .ic.big { width: 84px; height: 84px; }
+.card { text-align: center; }
+@media (max-height: 480px) { .slot .ic { width: 26px; height: 26px; } .card .ic { width: 44px; height: 44px; } .card .ic.big { width: 60px; height: 60px; } }
+
+/* ---------- start menu ---------- */
+body.in-menu .hud, body.in-menu .tag, body.in-menu #toast { display: none !important; }
+#menu { position: fixed; inset: 0; z-index: 8; display: none; background: linear-gradient(90deg, rgba(15,24,48,.72) 0%, rgba(15,24,48,.25) 55%, rgba(15,24,48,0) 100%); }
+body.in-menu #menu { display: block; }
+.menu-inner { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 1fr auto; gap: 16px 24px; padding: calc(16px + env(safe-area-inset-top, 0px)) 24px calc(16px + env(safe-area-inset-bottom, 0px)); box-sizing: border-box; }
+.logo { align-self: center; }
+.logo-sign {
+  display: inline-block; font-family: var(--display); font-size: clamp(40px, 9vh, 76px); line-height: 1; color: var(--paper);
+  padding: 14px 26px 18px; background: var(--wood); border: 5px solid var(--wood-dark); border-radius: 18px;
+  box-shadow: 0 8px 0 var(--wood-dark), 0 18px 30px rgba(0,0,0,.35); transform: rotate(-3deg);
+  text-shadow: 0 4px 0 var(--wood-dark); letter-spacing: 1px;
+  background-image: repeating-linear-gradient(0deg, transparent 0 22px, rgba(0,0,0,.14) 22px 25px);
+}
+.tagline { color: var(--paper); font-weight: 800; font-size: 16px; margin: 20px 0 0 6px; text-shadow: 0 2px 4px rgba(0,0,0,.6); max-width: 30ch; }
+.pick { grid-column: 2; grid-row: 1 / span 2; align-self: center; display: flex; gap: 12px; }
+.farmer-card {
+  width: min(190px, 22vw); padding: 10px; display: grid; gap: 4px; text-align: center; color: var(--ink);
+  background: var(--paper); border: 4px solid var(--wood-dark); box-shadow: 0 5px 0 var(--wood-dark); border-radius: 16px;
+  font-family: var(--body); transition: transform .15s;
+}
+.farmer-card img { width: 100%; aspect-ratio: 1; object-fit: contain; background: radial-gradient(circle at 50% 60%, #bfe8ff, #7fc4ee 70%); border-radius: 10px; }
+.farmer-card b { font-family: var(--display); font-weight: 400; font-size: 20px; }
+.farmer-card span { font-size: 11px; font-weight: 700; color: var(--wood); }
+.farmer-card[aria-checked="true"] { border-color: var(--leaf-dark); box-shadow: 0 5px 0 var(--leaf-dark), 0 0 0 4px #ffe36b; transform: translateY(-6px) rotate(-1deg); }
+.farmer-card:active { transform: translateY(0); }
+.menu-actions { grid-column: 1; align-self: end; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+button.big { font-size: 26px; padding: 12px 34px; border-radius: 16px; }
+button em { font-style: normal; font-family: var(--body); font-weight: 800; font-size: 11px; background: var(--paper); color: var(--wood-dark); padding: 2px 6px; border-radius: 6px; vertical-align: middle; margin-left: 4px; }
+#howSheet { z-index: 9; }
+#howSheet p { font-size: 14px; }
+@media (max-height: 480px) {
+  .farmer-card { width: min(150px, 20vw); padding: 7px; }
+  .farmer-card b { font-size: 16px; }
+  .farmer-card span { display: none; }
+  button.big { font-size: 20px; padding: 9px 24px; }
+  .tagline { font-size: 13px; margin-top: 14px; }
+}

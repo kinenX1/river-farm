@@ -1,9 +1,18 @@
 import * as THREE from 'three';
 import { ITEMS, FOOD, START_INVENTORY, START_COINS } from './data/items.js';
+import * as B from './models/buildings.js';
+import * as N from './models/nature.js';
+import { buildFarmer, animateFarmer, SKINS } from './models/farmer.js';
+import { ITEM_MODELS } from './models/items.js';
+import { renderIcons } from './gfx/icons.js';
+import { tex } from './gfx/textures.js';
+import * as M from './gfx/materials.js';
 
-// The whole offline prototype lives here for now. It gets split into
-// world / farmers / shop / building modules as the online version lands.
+// Game world + rules. Starts in "menu mode" (camera circles the map, the
+// other farmer works his land) until play(skin) is called from the menu.
+// Gets split further into world / shop / building modules as online lands.
 export function startGame() {
+let playing = false;
 const inv = { ...START_INVENTORY };
 let coins = START_COINS, hunger = 100;
 let renderer;
@@ -26,10 +35,6 @@ const mat = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color:
 function box(w, h, d, c, x = 0, y = 0, z = 0, parent = scene) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), typeof c === 'number' ? mat(c) : c);
   m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
-}
-function ball(r, c, x, y, z, parent) {
-  const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), mat(c));
-  m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m;
 }
 let toastTimer;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(toastTimer); toastTimer = setTimeout(() => t.style.opacity = 0, 2200); }
@@ -67,10 +72,10 @@ function land(cx) {
   }
   g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
   g.computeVertexNormals();
-  const top = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.95 }));
+  const top = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, map: tex('grass', 6, 8) }));
   top.position.set(cx, 0.42, 0); top.receiveShadow = true; scene.add(top);
   box(LAND_W, 0.6, LAND_D, 0x5a9e36, cx, 0.1, 0).castShadow = false;
-  box(LAND_W + 0.02, 1.2, LAND_D + 0.02, 0x8b5e34, cx, -0.8, 0);
+  box(LAND_W + 0.02, 1.2, LAND_D + 0.02, new THREE.MeshStandardMaterial({ color: 0x9b6a3c, map: tex('soil', 8, 1), roughness: 1 }), cx, -0.8, 0);
   box(LAND_W - 0.4, 1.2, LAND_D - 0.4, 0x6e4526, cx, -1.9, 0);
   const foam = new THREE.Mesh(new THREE.BoxGeometry(LAND_W + 1.4, 0.1, LAND_D + 1.4), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 }));
   foam.position.set(cx, -0.55, 0); scene.add(foam); foams.push(foam);
@@ -83,16 +88,16 @@ function land(cx) {
     t.rotation.z = (Math.random() - 0.5) * 0.4; scene.add(t);
   }
   const petals = [0xffffff, 0xffd84a, 0xff7aa8, 0xb48cff];
-  for (let i = 0; i < 70; i++) {
-    const f = new THREE.Mesh(new THREE.IcosahedronGeometry(0.13, 0), mat(petals[i % 4], { emissive: petals[i % 4], emissiveIntensity: 0.15 }));
-    f.position.set(cx + (Math.random() - 0.5) * (LAND_W - 1), 0.62, (Math.random() - 0.5) * (LAND_D - 1)); scene.add(f);
+  for (let i = 0; i < 60; i++) {
+    const f = N.flower(petals[i % 4]);
+    f.position.set(cx + (Math.random() - 0.5) * (LAND_W - 1), 0.45, (Math.random() - 0.5) * (LAND_D - 1)); scene.add(f);
   }
   for (let i = 0; i < 14; i++) {
     const side = Math.random() < 0.5 ? -1 : 1, alongX = Math.random() < 0.5;
     const x = cx + (alongX ? (Math.random() - 0.5) * (LAND_W - 2) : side * (LAND_W / 2 - 0.9));
     const z = alongX ? side * (LAND_D / 2 - 0.9) : (Math.random() - 0.5) * (LAND_D - 2);
-    if (i % 2) { const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.35 + Math.random() * 0.35, 0), mat(0x9aa0a6)); r.position.set(x, 0.6, z); r.rotation.set(Math.random(), Math.random(), 0); r.castShadow = true; scene.add(r); }
-    else { const bsh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.6 + Math.random() * 0.3, 1), mat(0x3f9b3a)); bsh.position.set(x, 0.8, z); bsh.scale.y = 0.75; bsh.castShadow = true; scene.add(bsh); }
+    const d = i % 2 ? N.rock() : N.bush();
+    d.position.set(x, i % 2 ? 0.5 : 0.45, z); scene.add(d);
   }
 }
 land(leftX); land(rightX);
@@ -101,15 +106,12 @@ river.position.set(0, -0.45, 0); scene.add(river);
 
 // Shop islet in the middle of the river, with a small dock to each land
 const SHOP_R = 3.25;
-box(SHOP_R * 2, 1, SHOP_R * 2, 0xd8c27a, 0, 0, 0);
-const shop = new THREE.Group(); shop.position.set(0, 0.5, -0.6); scene.add(shop);
-box(4, 2.6, 2.4, 0xf5e6c4, 0, 1.3, 0, shop);
-box(4.6, 0.3, 3, 0x5e3b1a, 0, 2.75, 0, shop);
-for (let i = 0; i < 6; i++) box(0.76, 0.4, 1.2, i % 2 ? 0xffffff : 0xd9453b, -1.9 + i * 0.76, 2.7, 1.8, shop);
-box(3.2, 0.9, 0.7, 0x8a5a2b, 0, 0.45, 1.6, shop);
-box(0.45, 0.45, 0.45, 0xe9b949, -1, 1.12, 1.6, shop); box(0.45, 0.45, 0.45, 0x9a9a9a, 0, 1.12, 1.6, shop); box(0.45, 0.45, 0.45, 0x6fb24a, 1, 1.12, 1.6, shop);
-box(1.2, 0.2, 1.8, 0xa87a4a, -3.7, 0.35, 1.6);
-box(1.2, 0.2, 1.8, 0xa87a4a, 3.7, 0.35, 1.6);
+box(SHOP_R * 2, 1, SHOP_R * 2, 0xe6d08e, 0, 0, 0);
+const shop = B.shop(); shop.position.set(0, 0.5, -0.9); scene.add(shop);
+for (const x of [-3.7, 3.7]) {
+  box(1.3, 0.2, 1.8, M.textured('planks', 0xb58656, 0.5, 1), x, 0.35, 1.6);
+  for (const z of [0.9, 2.3]) box(0.18, 1.2, 0.18, 0x7a4a22, x + (x < 0 ? -0.5 : 0.5), -0.1, z);
+}
 const SHOP_POS = new THREE.Vector3(0, 0, 1.6);
 
 // ================= WORLD OBJECTS =================
@@ -122,57 +124,26 @@ let bridge = null;   // {z}
 function addSolid(x, z, hw, hd) { const s = { x, z, hw, hd }; solids.push(s); return s; }
 
 function makeTree(x, z, s = 1, woodLeft = 8) {
-  const g = new THREE.Group(); g.position.set(x, 0.4, z); g.scale.setScalar(s); scene.add(g);
-  const trunk = box(0.7, 3, 0.7, 0x7a4a22, 0, 1.5, 0, g);
-  const top = new THREE.Group(); g.add(top);
-  ball(1.9, 0x3f9b3a, 0, 3.8, 0, top); ball(1.3, 0x4fb546, 0.9, 4.6, 0.3, top); ball(1.2, 0x37872f, -0.8, 4.4, -0.5, top);
-  const t = { g, top, trunk, x, z, wood: woodLeft, grow: s < 1 ? s : 1, solid: addSolid(x, z, 0.6, 0.6), shake: 0 };
+  const { g, top, trunk } = N.tree();
+  g.position.set(x, 0.4, z); g.scale.setScalar(s); g.rotation.y = Math.random() * 6; scene.add(g);
+  const t = { g, top, trunk, x, z, wood: woodLeft, grow: s < 1 ? s : 1, full: s < 1 ? 1 : s, solid: addSolid(x, z, 0.6, 0.6), shake: 0 };
   trees.push(t); structs.push({ x, z, hw: 1, hd: 1 });
   return t;
 }
+function cutDown(t) { t.top.visible = false; t.trunk.scale.y = 0.15; t.trunk.position.y = 0.25; }
+function place(model, x, y, z, rot = 0) { model.position.set(x, y, z); model.rotation.y = rot; scene.add(model); return model; }
 function makeFarm(x, z, rot, owner = 'me') {
-  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rot; scene.add(g);
-  box(6, 0.3, 6, 0x6b4226, 0, 0.45, 0, g);
-  const crops = [];
-  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
-    const m = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.9, 5), mat(0x9bd13c));
-    m.position.set(-2.1 + c * 1.4, 0.9, -2.1 + r * 1.4); m.castShadow = true; m.scale.setScalar(0.3); g.add(m); crops.push(m);
-  }
-  const f = { x, z, crops, growth: 0, owner };
+  const { g, crops, headM, stalkM } = B.farm();
+  place(g, x, 0, z, rot);
+  const f = { x, z, crops, headM, stalkM, growth: 0, owner };
   farms.push(f); return f;
 }
-function makeHouse(x, z, rot) {
-  const g = new THREE.Group(); g.position.set(x, 0.4, z); g.rotation.y = rot; scene.add(g);
-  box(4.5, 3, 4, 0xe8c99a, 0, 1.5, 0, g);
-  const roof = new THREE.Mesh(new THREE.ConeGeometry(3.6, 2.4, 4), mat(0x9c3d2a));
-  roof.rotation.y = Math.PI / 4; roof.position.set(0, 4.2, 0); roof.castShadow = true; g.add(roof);
-  box(1.1, 1.8, 0.15, 0x6b4423, 0, 0.9, 2.05, g);
-  box(0.9, 0.9, 0.15, 0x9fd8ff, -1.4, 1.8, 2.05, g);
-  box(0.6, 1.4, 0.6, 0x8b8b8b, 1.3, 4.3, -0.8, g);
-}
-function makeBarn(x, z, rot) {
-  const g = new THREE.Group(); g.position.set(x, 0.4, z); g.rotation.y = rot; scene.add(g);
-  box(6, 4, 5, 0xc0392b, 0, 2, 0, g);
-  const roof = new THREE.Mesh(new THREE.ConeGeometry(4.3, 2.4, 4), mat(0x5b3a1e));
-  roof.rotation.y = Math.PI / 4; roof.scale.set(1, 1, 0.85); roof.position.set(0, 5.2, 0); roof.castShadow = true; g.add(roof);
-  box(2.2, 2.8, 0.2, 0xf1e0c5, 0, 1.4, 2.55, g);
-  box(2.2, 0.2, 0.22, 0x7a2419, 0, 1.4, 2.6, g);
-}
-function makeFence(x, z, rot) {
-  const g = new THREE.Group(); g.position.set(x, 0.4, z); g.rotation.y = rot; scene.add(g);
-  for (let i = -1; i <= 1; i++) box(0.22, 1.1, 0.22, 0xa87a4a, i * 1.4, 0.55, 0, g);
-  box(3, 0.15, 0.12, 0xa87a4a, 0, 0.8, 0, g); box(3, 0.15, 0.12, 0xa87a4a, 0, 0.4, 0, g);
-}
-function makeWall(x, z, rot) {
-  const g = new THREE.Group(); g.position.set(x, 0.4, z); g.rotation.y = rot; scene.add(g);
-  box(3, 1.6, 0.8, 0x9a9a9a, 0, 0.8, 0, g);
-  box(1.4, 0.8, 0.82, 0x8a8a8a, -0.7, 0.4, 0, g);
-}
+const makeHouse = (x, z, rot) => place(B.house(), x, 0.4, z, rot);
+const makeBarn = (x, z, rot) => place(B.barn(), x, 0.4, z, rot);
+const makeFence = (x, z, rot) => place(B.fence(), x, 0.4, z, rot);
+const makeWall = (x, z, rot) => place(B.wall(), x, 0.4, z, rot);
 function makeBridge(z) {
-  const g = new THREE.Group(); g.position.set(0, 0.35, z); scene.add(g);
-  for (let i = 0; i < 12; i++) box(0.72, 0.25, 3, 0xb5824a, -RIVER / 2 - 0.4 + i * 0.8, 0, 0, g);
-  box(RIVER + 1.5, 0.2, 0.2, 0x7a4a22, 0, 0.9, 1.4, g); box(RIVER + 1.5, 0.2, 0.2, 0x7a4a22, 0, 0.9, -1.4, g);
-  for (const px of [-4.5, 0, 4.5]) for (const pz of [-1.4, 1.4]) box(0.2, 1, 0.2, 0x7a4a22, px, 0.45, pz, g);
+  place(B.bridge(RIVER + 1.6), 0, 0.35, z);
   bridge = { z };
 }
 
@@ -191,62 +162,25 @@ const pay = cost => Object.entries(cost).forEach(([k, n]) => inv[k] -= n);
 const costHtml = cost => Object.entries(cost).map(([k, n]) => `<span class="${inv[k] >= n ? '' : 'miss'}">${n} ${ITEMS[k].name}</span>`).join(' · ');
 
 // ================= FARMERS =================
-function farmer(o) {
-  const g = new THREE.Group(); scene.add(g);
-  const body = new THREE.Group(); g.add(body);
-  const belly = ball(1, o.shirt, 0, 1.25, 0, body); belly.scale.set(1.15, 1.05, 1.05);
-  const overalls = ball(1.02, o.pants, 0, 1.0, 0, body); overalls.scale.set(1.17, 0.8, 1.08);
-  box(0.25, 1, 0.12, o.pants, -0.45, 1.7, 0.95, body); box(0.25, 1, 0.12, o.pants, 0.45, 1.7, 0.95, body);
-  ball(0.55, 0xf2c29b, 0, 2.55, 0, body);
-  ball(0.12, 0x2b1d0e, -0.2, 2.62, 0.5, body); ball(0.12, 0x2b1d0e, 0.2, 2.62, 0.5, body);
-  ball(0.14, 0xe8a07a, 0, 2.48, 0.56, body);
-  if (o.beard) { const b = ball(0.42, o.beard, 0, 2.25, 0.32, body); b.scale.set(1.1, 0.8, 0.7); }
-  if (o.mustache) box(0.55, 0.12, 0.12, o.mustache, 0, 2.38, 0.55, body);
-  if (o.hat === 'straw') {
-    const brim = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.05, 0.08, 16), mat(0xe8cf7a)); brim.position.y = 2.95; brim.castShadow = true; body.add(brim);
-    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, 0.45, 12), mat(0xdcc06a)); top.position.y = 3.2; body.add(top);
-    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.56, 0.1, 12), mat(0x7a2419)); band.position.y = 3.02; body.add(band);
-  } else {
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.58, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(o.hatColor)); cap.position.y = 2.72; body.add(cap);
-    box(0.7, 0.07, 0.5, o.hatColor, 0, 2.75, 0.6, body);
-  }
-  const armL = new THREE.Group(); armL.position.set(-1.2, 1.9, 0); body.add(armL);
-  const armR = new THREE.Group(); armR.position.set(1.2, 1.9, 0); body.add(armR);
-  const al = ball(0.3, o.shirt, 0, -0.4, 0, armL); al.scale.set(0.8, 1.4, 0.8);
-  const ar = ball(0.3, o.shirt, 0, -0.4, 0, armR); ar.scale.set(0.8, 1.4, 0.8);
-  const axe = new THREE.Group(); armR.add(axe);
-  box(0.12, 1.4, 0.12, 0x7a4a22, 0, -0.6, 0.35, axe); box(0.1, 0.4, 0.5, 0xb0b0b0, 0, -0.05, 0.55, axe);
-  const sword = new THREE.Group(); armR.add(sword); sword.visible = false;
-  box(0.1, 1.5, 0.22, 0xd9e2ec, 0, -0.2, 0.45, sword); box(0.5, 0.1, 0.12, 0x7a4a22, 0, -0.9, 0.45, sword);
-  const legL = box(0.45, 0.45, 0.5, 0x4a2e17, -0.45, 0.22, 0, g);
-  const legR = box(0.45, 0.45, 0.5, 0x4a2e17, 0.45, 0.22, 0, g);
-  g.scale.setScalar(1.05);
-  return { g, body, legL, legR, armL, armR, axe, sword, walkT: 0, swing: 0, x: 0, z: 0, face: 0 };
+const animate = (f, moving, dt) => animateFarmer(f, moving, dt, reduceMotion);
+// Both farmers exist from the start; play(skin) decides which one is you.
+// You always live on the left land.
+const farmers = { zino: buildFarmer('zino'), copper: buildFarmer('copper') };
+Object.values(farmers).forEach(f => scene.add(f.g));
+let me = farmers.zino, copper = farmers.copper;
+function assignSkins(skin) {
+  me = farmers[skin]; copper = farmers[skin === 'zino' ? 'copper' : 'zino'];
+  me.x = leftX + 4; me.z = 6; me.face = 0;
+  copper.x = rightX - 2; copper.z = 6;
+  $('tagMe').textContent = 'You · ' + SKINS[skin].name;
+  $('tagCopper').textContent = SKINS[skin === 'zino' ? 'copper' : 'zino'].name;
 }
-function animate(f, moving, dt) {
-  if (moving && !reduceMotion) f.walkT += dt * 7;
-  const w = f.walkT, a = moving ? 1 : 0;
-  f.body.rotation.z = Math.sin(w) * 0.17 * a;              // fat waddle
-  f.body.position.y = Math.abs(Math.sin(w)) * 0.2 * a;
-  f.legL.position.z = Math.sin(w) * 0.32 * a; f.legR.position.z = -Math.sin(w) * 0.32 * a;
-  f.armL.rotation.x = Math.sin(w) * 0.6 * a;
-  if (f.swing > 0) { f.swing -= dt * 3; f.armR.rotation.x = -Math.sin(Math.max(0, f.swing) * Math.PI) * 2.2; }
-  else f.armR.rotation.x = -Math.sin(w) * 0.6 * a;
-  f.g.position.set(f.x, 0.4, f.z); f.g.rotation.y = f.face;
-  if (f.blob) f.blob.position.set(f.x, 0.55, f.z);
-}
-
-const me = farmer({ shirt: 0xd9cfae, pants: 0x6b5236, beard: 0xf2f2f2, hat: 'straw' });
-me.x = leftX + 4; me.z = 6;
-const copper = farmer({ shirt: 0xc8632b, pants: 0x3a5a8c, mustache: 0x9c4a1a, hat: 'cap', hatColor: 0x2e7d4f });
-copper.x = rightX - 2; copper.z = 6;
+assignSkins('zino');
 
 // Respawn pads
 function respawnPad(x, z, color) {
-  const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 0.2, 16), mat(color, { emissive: color, emissiveIntensity: 0.35 }));
-  pad.position.set(x, 0.5, z); scene.add(pad);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.1, 6, 24), mat(0xffffff, { emissive: color, emissiveIntensity: 0.8 }));
-  ring.rotation.x = Math.PI / 2; ring.position.set(x, 0.75, z); scene.add(ring);
+  const { g, ring } = B.respawnPad(color);
+  place(g, x, 0.42, z);
   structs.push({ x, z, hw: 1.8, hd: 1.8 });
   return ring;
 }
@@ -271,7 +205,7 @@ function blob(f) {
   const m = new THREE.Mesh(new THREE.CircleGeometry(1.1, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false }));
   m.rotation.x = -Math.PI / 2; scene.add(m); f.blob = m;
 }
-blob(me); blob(copper);
+Object.values(farmers).forEach(blob);
 
 // ================= WALKING RULES =================
 function onLand(x, z, side) {
@@ -287,7 +221,7 @@ function walkable(x, z) {
   return false;
 }
 function hitsSolid(x, z, r = 0.7) {
-  if (Math.abs(x - shop.position.x) < 2 + r && Math.abs(z - shop.position.z) < 1.2 + r) return true;
+  if (Math.abs(x - shop.position.x) < 2.1 + r && Math.abs(z - (shop.position.z - 0.2)) < 1.5 + r) return true;
   return solids.some(s => Math.abs(x - s.x) < s.hw + r && Math.abs(z - s.z) < s.hd + r);
 }
 function tryMove(f, dx, dz) {
@@ -334,12 +268,17 @@ canvas.addEventListener('pointerup', () => drag = null);
 canvas.addEventListener('wheel', e => { camDist = Math.min(80, Math.max(20, camDist + e.deltaY * 0.03)); }, { passive: true });
 
 // ================= INVENTORY UI =================
+const icons = renderIcons(ITEM_MODELS);
+const buildIcons = renderIcons({
+  farm: () => B.farm().g, fence: B.fence, house: B.house, barn: B.barn,
+  tree: () => N.tree().g, wall: B.wall, bridge: () => B.bridge(8),
+}, { angle: [0.7, 0.55], dist: 3.8 });
 function renderInv() {
   $('coins').textContent = coins;
   $('hotbar').innerHTML = Object.keys(ITEMS).map(k => {
     const n = inv[k];
     return `<div class="slot ${n ? '' : 'empty'}" data-item="${k}" title="${ITEMS[k].name}${FOOD[k] ? ' (tap to eat)' : ''}">
-      <span class="sw" style="background:${ITEMS[k].color}"></span><span class="n">${n}</span><span class="l">${ITEMS[k].name}</span></div>`;
+      <img class="ic" src="${icons[k]}" alt=""><span class="n">${n}</span><span class="l">${ITEMS[k].name}</span></div>`;
   }).join('');
 }
 $('hotbar').addEventListener('click', e => {
@@ -357,11 +296,11 @@ function rollShop() {
   todayStock = STOCK_POOL.slice().sort(() => Math.random() - 0.5).slice(0, 6).map(k => ({ k, left: 2 + Math.floor(Math.random() * 6) }));
 }
 function renderShop() {
-  $('buyGrid').innerHTML = todayStock.map((s, i) => `<div class="card"><b>${ITEMS[s.k].name}</b>
+  $('buyGrid').innerHTML = todayStock.map((s, i) => `<div class="card"><img class="ic" src="${icons[s.k]}" alt=""><b>${ITEMS[s.k].name}</b>
     <div class="cost">${ITEMS[s.k].buy} coins · ${s.left} left</div>
     <button data-buy="${i}" ${coins >= ITEMS[s.k].buy && s.left ? '' : 'disabled'}>Buy</button></div>`).join('');
   const sellable = Object.keys(ITEMS).filter(k => ITEMS[k].sell);
-  $('sellGrid').innerHTML = sellable.map(k => `<div class="card"><b>${ITEMS[k].name}</b>
+  $('sellGrid').innerHTML = sellable.map(k => `<div class="card"><img class="ic" src="${icons[k]}" alt=""><b>${ITEMS[k].name}</b>
     <div class="cost">${ITEMS[k].sell} coins each · you have ${inv[k]}</div>
     <button class="wood" data-sell="${k}" ${inv[k] ? '' : 'disabled'}>Sell 1</button></div>`).join('');
 }
@@ -386,7 +325,7 @@ let placing = null; // {key, rot, ghost}
 function renderBuild() {
   $('buildGrid').innerHTML = Object.entries(BUILDS).map(([k, b]) => {
     const blocked = k === 'bridge' && bridge;
-    return `<div class="card"><b>${b.name}</b><div class="cost">${costHtml(b.cost)}</div>
+    return `<div class="card"><img class="ic big" src="${buildIcons[k]}" alt=""><b>${b.name}</b><div class="cost">${costHtml(b.cost)}</div>
       ${b.note ? `<div class="cost" style="font-weight:600">${b.note}</div>` : ''}
       <button data-build="${k}" ${canPay(b.cost) && !blocked ? '' : 'disabled'}>${blocked ? 'Built' : 'Place'}</button></div>`;
   }).join('');
@@ -469,7 +408,7 @@ function pickAction() {
     me.face = Math.atan2(t.x - me.x, t.z - me.z);
     t.wood--; inv.wood++; toast(`+1 Wood (${t.wood} left in this tree)`); renderInv();
     if (t.wood === 0) {
-      t.top.visible = false; t.trunk.scale.y = 0.2; t.trunk.position.y = 0.3;
+      cutDown(t);
       toast('The tree is gone! Sell wood at the shop, or buy a sapling.');
       setHelp('Cross the dock to the shop in the river. Sell wood, buy what you need.');
     }
@@ -499,7 +438,7 @@ function runBot(dt) {
     animate(copper, true, dt); return;
   }
   if (step[0] === 'chop') {
-    if (copperTree.wood > 0) { copper.face = Math.atan2(copperTree.x - copper.x, copperTree.z - copper.z); copper.swing = 1; copperTree.shake = 0.3; copperTree.wood--; if (!copperTree.wood) { copperTree.top.visible = false; copperTree.trunk.scale.y = 0.2; copperTree.trunk.position.y = 0.3; } }
+    if (copperTree.wood > 0) { copper.face = Math.atan2(copperTree.x - copper.x, copperTree.z - copper.z); copper.swing = 1; copperTree.shake = 0.3; copperTree.wood--; if (!copperTree.wood) cutDown(copperTree); }
     step[1]--; bot.wait = 0.7; if (step[1] <= 0) bot.plan.shift();
     animate(copper, false, dt); return;
   }
@@ -548,11 +487,11 @@ function resize() {
 }
 addEventListener('resize', resize); resize();
 
-const tags = [[$('tagMe'), me.g, 3.2], [$('tagCopper'), copper.g, 3.2], [$('tagShop'), shop, 4]];
+const tags = [[$('tagMe'), () => me.g, 3.4], [$('tagCopper'), () => copper.g, 3.4], [$('tagShop'), () => shop, 4.2]];
 const v3 = new THREE.Vector3();
 function placeTags() {
   for (const [el, obj, off] of tags) {
-    obj.getWorldPosition(v3); v3.y += off; v3.project(camera);
+    obj().getWorldPosition(v3); v3.y += off; v3.project(camera);
     el.style.left = ((v3.x + 1) / 2 * innerWidth) + 'px';
     el.style.top = ((1 - v3.y) / 2 * innerHeight) + 'px';
     el.hidden = v3.z > 1 || Math.abs(v3.x) > 1.1 || Math.abs(v3.y) > 1.1;
@@ -572,14 +511,14 @@ function frame(now) {
   if (wOn !== raining) { raining = wOn; storm = wOn && weather.kind === 'storm'; rain.visible = raining; if (wOn) toast(storm ? 'A storm is coming!' : 'It’s raining. Crops grow faster.'); }
 
   // hunger (walk slower when starving; you can never run)
-  hunger = Math.max(0, hunger - dt * 0.35);
+  if (playing) hunger = Math.max(0, hunger - dt * 0.35);
   $('hunger').style.width = hunger + '%';
 
   // movement, relative to the camera
   let ix = stick.x + ((keys.d || keys.arrowright) ? 1 : 0) - ((keys.a || keys.arrowleft) ? 1 : 0);
   let iy = stick.y + ((keys.s || keys.arrowdown) ? 1 : 0) - ((keys.w || keys.arrowup) ? 1 : 0);
   const il = Math.hypot(ix, iy); if (il > 1) { ix /= il; iy /= il; }
-  const moving = il > 0.12 && $('shopSheet').hidden && $('buildSheet').hidden;
+  const moving = playing && il > 0.12 && $('shopSheet').hidden && $('buildSheet').hidden;
   if (moving) {
     const speed = (hunger > 0 ? 3.4 : 1.8) * dt;
     const wx = ix * Math.cos(yaw) + iy * Math.sin(yaw), wz = -ix * Math.sin(yaw) + iy * Math.cos(yaw);
@@ -598,7 +537,7 @@ function frame(now) {
 
   // trees grow, shake
   for (const t of trees) {
-    if (t.grow < 1) { t.grow = Math.min(1, t.grow + dt * (raining ? 0.06 : 0.02)); t.g.scale.setScalar(Math.max(0.3, t.grow)); }
+    if (t.grow < 1) { t.grow = Math.min(1, t.grow + dt * (raining ? 0.06 : 0.02)); t.g.scale.setScalar(Math.max(0.3, t.grow) * t.full); }
     if (t.shake > 0) { t.shake -= dt; t.top.rotation.z = Math.sin(t.shake * 60) * 0.06; } else t.top.rotation.z = 0;
   }
   // farms grow (rain = much faster)
@@ -606,7 +545,8 @@ function frame(now) {
     f.growth = Math.min(1, f.growth + dt * (raining ? 0.09 : 0.025));
     const s = 0.3 + f.growth * 0.9;
     const ripe = f.growth >= 1;
-    f.crops.forEach(c => { c.scale.setScalar(s); c.material.color.setHex(ripe ? 0xe3c04a : 0x9bd13c); });
+    f.crops.forEach(c => c.scale.setScalar(s));
+    f.headM.color.setHex(ripe ? 0xe8c65a : 0x9bd13c); f.stalkM.color.setHex(ripe ? 0xd9b24a : 0x8fbf3c);
   }
 
   // sun and sky
@@ -641,11 +581,12 @@ function frame(now) {
   }
   clouds.forEach(c => { c.position.x += c.userData.speed * dt; if (c.position.x > 80) c.position.x = -80; });
   foams.forEach(f => f.material.opacity = 0.25 + Math.sin(tm * 1.5) * 0.1);
-  rings.forEach((r, i) => { r.rotation.z += dt * (i ? -1 : 1); r.position.y = 0.75 + Math.sin(tm * 2) * 0.15; });
+  rings.forEach((r, i) => { r.rotation.z += dt * (i ? -1 : 1); r.position.y = 0.4 + Math.sin(tm * 2) * 0.12; });
 
   // camera follows you
   // wide view of both lands, drifting a little toward you
-  const fx = me.x * 0.35, fz = me.z * 0.35 + 5;
+  if (!playing) yaw += dt * 0.06;
+  const fx = playing ? me.x * 0.35 : 0, fz = playing ? me.z * 0.35 + 5 : 0;
   camera.position.set(fx + Math.sin(yaw) * Math.cos(pitch) * camDist, Math.sin(pitch) * camDist, fz + Math.cos(yaw) * Math.cos(pitch) * camDist);
   camera.lookAt(fx, 0, fz);
   renderer.render(scene, camera);
@@ -659,4 +600,14 @@ function frame(now) {
 }
 $('action').onclick = () => actionFn && actionFn();
 requestAnimationFrame(frame);
+
+return {
+  portraits: () => renderIcons({ zino: () => buildFarmer('zino').g, copper: () => buildFarmer('copper').g }, { size: 256, angle: [0.35, 0.25], dist: 4.2 }),
+  play(skin) {
+    assignSkins(skin);
+    bot.plan = BOT_PLAN.slice(); bot.wait = 0;
+    yaw = 0; playing = true;
+    document.body.classList.remove('in-menu');
+  },
+};
 }

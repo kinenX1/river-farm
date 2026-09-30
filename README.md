@@ -27,7 +27,10 @@ turn the phone sideways, and play.
 ```
 client/              the game (Three.js + Vite)
   index.html         HUD: stats, hotbar, joystick, shop and build sheets
-  src/game.js        world, farmers, shop, building, weather, day/night
+  src/game.js        world rules: shop, building, weather, day/night, the bot
+  src/menu.js        start menu: pick your farmer, Play
+  src/models/        3D models: farmers, buildings, trees/rocks/flowers, items
+  src/gfx/           painted textures, materials, 3D item icons
   src/data/items.js  every item and its shop price
   src/style.css
 server/              online: lobbies, friend codes, matchmaking (WebSocket)

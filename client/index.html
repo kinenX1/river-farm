@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800&display=swap">
 </head>
-<body>
+<body class="in-menu">
 
 <canvas id="world" aria-label="River Farm game world"></canvas>
 
@@ -55,6 +55,36 @@
 <div class="tag" id="tagMe">You · Mr. Zino</div>
 <div class="tag enemy" id="tagCopper">Mr. Copper</div>
 <div class="tag" id="tagShop">Shop</div>
+
+<div id="menu">
+  <div class="menu-inner">
+    <div class="logo">
+      <div class="logo-sign">River Farm</div>
+      <p class="tagline">Build your life. Beat the land across the river.</p>
+    </div>
+    <div class="pick" role="radiogroup" aria-label="Choose your farmer">
+      <button class="farmer-card" data-skin="zino" role="radio" aria-checked="true">
+        <img alt="" data-portrait="zino"><b>Mr. Zino</b><span>Old farmer, straw hat, white beard</span>
+      </button>
+      <button class="farmer-card" data-skin="copper" role="radio" aria-checked="false">
+        <img alt="" data-portrait="copper"><b>Mr. Copper</b><span>Plaid shirt, copper mustache</span>
+      </button>
+    </div>
+    <div class="menu-actions">
+      <button id="playBtn" class="big">Play</button>
+      <button id="onlineBtn" class="big wood" disabled>Online <em>Soon</em></button>
+      <button id="howBtn" class="wood">How to play</button>
+    </div>
+  </div>
+</div>
+<div class="panel sheet" id="howSheet" hidden>
+  <h2>How to play <button class="x red" data-close-how>Close</button></h2>
+  <p>Walk with the joystick. You can’t run, you’re a big farmer.</p>
+  <p>Chop your one tree for wood. When it’s gone, it’s gone: sell wood at the shop on the river island and buy what you need.</p>
+  <p>The shop has 6 random items and restocks every midnight.</p>
+  <p>Tap Build to put down a farm, fence, house, barn, stone wall, a new tree, or a bridge to the other land.</p>
+  <p>Rain is rare. When it comes, your crops and trees grow much faster.</p>
+</div>
 <div id="rotate"><div><span>&#9647;</span>Turn your phone sideways to play</div></div>
 <div id="fail" hidden>Your browser couldn't start 3D graphics. Try opening this page in Chrome.</div>
 
