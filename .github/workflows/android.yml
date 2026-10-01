@@ -29,7 +29,7 @@ jobs:
       - name: Build the game
         run: npm run build --workspace client
         env:
-          VITE_SERVER_URL: ${{ vars.SERVER_URL }}
+          VITE_SERVER_URL: ${{ vars.SERVER_URL || 'wss://sides-of-the-river.onrender.com' }}
       - name: Copy the game into the Android app
         run: npx cap sync android
         working-directory: client

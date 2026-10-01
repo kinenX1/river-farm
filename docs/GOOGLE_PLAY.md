@@ -10,7 +10,7 @@ One free service runs the website and the online server together.
 2. Make an account at render.com (sign in with GitHub), then **New → Blueprint**
    and pick the repo. It reads `render.yaml`, builds the game and starts it.
 3. After a few minutes you get an address like
-   `https://sides-of-the-river.onrender.com`. That's the game. Send it to
+   `https://sides-of-the-river.onrender.com` (this is the live one). That's the game. Send it to
    anyone: it works in any phone or computer browser, no sign-in.
 4. On a phone, the browser menu has **Add to Home Screen** / **Install app**:
    the game then opens full-screen with its own icon, like a real app.
@@ -35,8 +35,9 @@ unknown apps" for their browser or file manager.
 
 1. Put the project on GitHub (`river-farm` repo).
 2. Host the website + server (step 0 above) and copy its address.
-3. In the GitHub repo: **Settings → Secrets and variables → Actions → Variables**,
-   add `SERVER_URL` = the same address but starting with `wss://`.
+3. The app connects to `wss://sides-of-the-river.onrender.com` by default. If the
+   website moves, set **Settings → Secrets and variables → Actions → Variables**
+   `SERVER_URL` to the new address starting with `wss://`.
 4. Push to `main` (or run **Actions → Android build → Run workflow**).
 5. When it finishes, open the run and download **the-sides-of-the-river-test-apk**.
    Send `app-debug.apk` to your friends (WhatsApp, Drive, Discord…).
