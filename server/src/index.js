@@ -5,8 +5,8 @@
 // Run with `npm run server` from the repo root. PORT defaults to 8787.
 import { WebSocketServer } from 'ws';
 import { createServer } from 'node:http';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, createReadStream } from 'node:fs';
+import { dirname, join, normalize, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Hub } from '../../shared/hub.js';
 
@@ -34,8 +34,20 @@ function save() {
 }
 setInterval(() => { hub.tick(); save(); }, 1000);
 
-// plain HTTP answers "ok" so hosting services can check the server is up
-const http = createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/plain' }); res.end('The Sides of the River server is running'); });
+// The same server is the website: it serves the built game from client/dist
+// (run `npm run build` first). Online play uses the same address.
+const SITE = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'client', 'dist');
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json' };
+const http = createServer((req, res) => {
+  const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  if (path === '/health') { res.writeHead(200, { 'content-type': 'text/plain' }); return res.end('ok'); }
+  let file = normalize(join(SITE, path === '/' ? 'index.html' : path));
+  if (!file.startsWith(SITE) || !existsSync(file) || statSync(file).isDirectory()) file = join(SITE, 'index.html');
+  if (!existsSync(file)) { res.writeHead(200, { 'content-type': 'text/plain' }); return res.end('The Sides of the River server is running. Build the game with `npm run build` to serve the website here.'); }
+  const long = file.includes(`${sep}assets${sep}`);
+  res.writeHead(200, { 'content-type': TYPES[extname(file)] || 'application/octet-stream', 'cache-control': long ? 'public, max-age=31536000, immutable' : 'no-cache' });
+  createReadStream(file).pipe(res);
+});
 const wss = new WebSocketServer({ server: http });
 http.listen(PORT);
 wss.on('connection', ws => {

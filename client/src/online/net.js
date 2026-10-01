@@ -8,7 +8,11 @@ import { Hub } from '../../../shared/hub.js';
 //             pretend players, so every menu still works.
 // Each returns { mode, send(msg), close(), matchSync(match) }.
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || `ws://${location.hostname || 'localhost'}:8787`;
+// On the website the game and the server share one address; while developing
+// (vite on :5173) the server runs separately on :8787.
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || (import.meta.env.DEV || location.protocol === 'file:' || location.protocol === 'capacitor:'
+  ? `ws://${location.hostname || 'localhost'}:8787`
+  : `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`);
 const timeout = ms => new Promise(r => setTimeout(() => r(null), ms));
 
 export async function connect(profile, onMessage) {

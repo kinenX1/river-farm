@@ -1,6 +1,25 @@
 # Getting The Sides of the River onto phones
 
-There are three ways, from fastest to slowest.
+There are four ways, from fastest to slowest.
+
+## 0. The website (best first step)
+
+One free service runs the website and the online server together.
+
+1. Put the project on GitHub (`river-farm` repo).
+2. Make an account at render.com (sign in with GitHub), then **New → Blueprint**
+   and pick the repo. It reads `render.yaml`, builds the game and starts it.
+3. After a few minutes you get an address like
+   `https://sides-of-the-river.onrender.com`. That's the game. Send it to
+   anyone: it works in any phone or computer browser, no sign-in.
+4. On a phone, the browser menu has **Add to Home Screen** / **Install app**:
+   the game then opens full-screen with its own icon, like a real app.
+
+Render's free plan sleeps after 15 minutes with nobody playing; the first
+visitor wakes it (about 30 seconds). Players and friend lists are kept on the
+server's disk, which the free plan resets when it restarts; a paid plan ($7/mo)
+or a database fixes that later. You can also connect your own domain name
+(like `sidesoftheriver.com`) in Render's settings.
 
 ## 1. Today: share the game link
 
@@ -15,10 +34,7 @@ No Play Store needed. Android installs it after the friend allows "install
 unknown apps" for their browser or file manager.
 
 1. Put the project on GitHub (`river-farm` repo).
-2. Host the online server (free):
-   - Make an account at render.com, then **New → Blueprint** and pick the repo.
-     It reads `render.yaml` and starts the server.
-   - Copy its address, like `https://sides-of-the-river-server.onrender.com`.
+2. Host the website + server (step 0 above) and copy its address.
 3. In the GitHub repo: **Settings → Secrets and variables → Actions → Variables**,
    add `SERVER_URL` = the same address but starting with `wss://`.
 4. Push to `main` (or run **Actions → Android build → Run workflow**).

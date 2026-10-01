@@ -19,10 +19,12 @@ npm test           # online tests
 
 Turn the phone sideways: the game is landscape only.
 
-## Getting it on phones and Google Play
+## Website, phones and Google Play
 
-See [docs/GOOGLE_PLAY.md](docs/GOOGLE_PLAY.md): test APK for friends, free
-server hosting, and the Play Store steps. GitHub Actions builds the app on
+`npm run build && npm start` runs the whole thing (website + online server) on
+one address, port 8787. `render.yaml` puts it online for free on Render.
+See [docs/GOOGLE_PLAY.md](docs/GOOGLE_PLAY.md) for the website, a test APK for
+friends, and the Play Store steps. GitHub Actions builds the app on
 every push to `main`.
 
 ## What's in it
@@ -62,6 +64,6 @@ shared/                code used by both server and game
   looks.js             what a farmer looks like, and the 12 presets
 server/                WebSocket server; saves players to server/data/
 docs/GOOGLE_PLAY.md    how to ship it
-render.yaml            free server hosting on Render
+render.yaml            free hosting for the website + server on Render
 .github/workflows/     builds the Android app
 ```

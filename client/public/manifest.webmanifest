@@ -1,0 +1,15 @@
+{
+  "name": "The Sides of the River",
+  "short_name": "Sides of the River",
+  "description": "Online farm-versus game. Build your life on your side of the river and beat the other side.",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0f1830",
+  "theme_color": "#0f1830",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
